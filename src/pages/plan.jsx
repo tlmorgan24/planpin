@@ -23,10 +23,14 @@ function PlanProvider({children}) {
 
     const [numPages, setNumPages] = useState(1); // number of pages in PDF (initialised to 1)
     const [pageNum, setPageNum] = useState(1); // page number (initialised to 1)
-    const [zoom, setZoom] = useState(1); // zoom factor, where 1 means at least one dimension of the PDF is shown entirely on canvas (initialised to 1)
-    const [scrollX, setScrollX] = useState(0); // rightwards scroll in true-size PDF pt, where 0 means left-aligned (initialised to 0)
-    const [scrollY, setScrollY] = useState(0); // downwards scroll in true-size PDF pt, where 0 means top-aligned (initialised to 0)
-    
+
+    // Rather than having individual states for zoom, scrollX and scrollY, we will put them together in a single object, as they are dependent on each other (e.g. when we adjust zoom, we want to also adjust scrollX and scrollY accordingly in one go using the same batch of current values)
+    // This will enable us to better use functional updates and ensure up-to-date values throughout.= useState(0); // downwards scroll in true-size PDF pt, where 0 means top-aligned (initialised to 0)
+    const [interactionState, setInteractionState] = useState({zoom: 1, scrollX: 0, scrollY: 0});
+    // zoom = zoom factor, where 1 means at least one dimension of the PDF is shown entirely on canvas (initialised to 1)
+    // scrollX = rightwards scroll in true-size PDF pt, where 0 means left-aligned (initialised to 0)
+    // scrollY = downwards scroll in true-size PDF pt, where 0 means top-aligned (initialised to 0)
+
     const [zoomIncrement, setZoomIncrement] = useState(1.04); // zoom increment factor
     const [scrollIncrement, setScrollIncrement] = useState(6); // absolute scroll increment in PDF pt, which will be divided by zoom factor (for finer scrolling when zoomed in)
     // ^ I have adjusted increment values such that rate is appropriate when doing trackpad pinching/dragging (which, as per my useWheelZoom and useWheelPan effects, causes continuous increments of zoom/scroll)
@@ -69,9 +73,7 @@ function PlanProvider({children}) {
         pdfFileName, setPDFFileName,
         numPages, setNumPages,
         pageNum, setPageNum,
-        zoom, setZoom,
-        scrollX, setScrollX,
-        scrollY, setScrollY,
+        interactionState, setInteractionState,
         zoomIncrement, setZoomIncrement,
         scrollIncrement, setScrollIncrement,
         clickLocations, setClickLocations,

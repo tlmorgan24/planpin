@@ -44,11 +44,9 @@ export function PreviousPageButton() {
 // -- RESET ZOOM/SCROLL --
 
 export function ResetViewButton() {
-    const {setZoom, setScrollX, setScrollY} = useContext(PlanContext);
+    const {setInteractionState} = useContext(PlanContext);
     const handleClick = () => {
-        setZoom(1);
-        setScrollX(0);
-        setScrollY(0);
+        setInteractionState({zoom: 1, scrollX: 0, scrollY: 0})
     };
     return(
         <button type="button" onClick={handleClick}>Reset view</button>
