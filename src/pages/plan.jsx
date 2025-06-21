@@ -36,13 +36,12 @@ function PlanProvider({children}) {
     // ^ I have adjusted increment values such that rate is appropriate when doing trackpad pinching/dragging (which, as per my useWheelZoom and useWheelPan effects, causes continuous increments of zoom/scroll)
 
     // clickLocations:
-        // Array of location objects, where each location has properties id, pdfPath, pageNum, x, y, imagePath.
+        // Array of location objects, where each location has properties id, pageNum, x, y (taken from markers database).
         // x and y will be in pt from top left (rightwards & downwards, respectively), for true-size PDF (independent of zooming).
-        // pdfPath and imagePath will be relative to pdf and image folder locations (defined in app context).
-        // pdfPath is only an input in case we end up needing this... clickLocations will be generated/refreshed from a single PDF (pdfFileName), so pdfPath will be the same for all entries of clickLocations
-        // IT MAY BE THAT MY PROGRAM ASSUMES ALL IS AT TOP LEVEL OF THE FOLDER (i.e. I SAY pdfPath, but I actually MEAN pdfFileName and assume it's directly in pdfFolder)
+        // Database will be filtered to the PDF currently being viewed (pdfFileName), so all location objects are for the current PDF.
+        // Additional data (e.g. imagePath, description, etc.) is unnecessary for purposes of displaying marker locations, so will only be fetched when a marker is clicked.
     const [clickLocations, setClickLocations] = useState([]); // initially empty
-    // Get existing data from markers database:
+    // Get clickLocations from markers database:
     const {db} = useContext(DbContext);
     useEffect(() => {
         async function func() {
@@ -52,12 +51,10 @@ function PlanProvider({children}) {
             // res.values will be an array of rows, or undefined if empty
             if (!(res.values && res.values.length > 0)) return;
             const loadedClickLocations = res.values.map(row => ({
-            id: row.id,
-            pdfPath: row.pdfPath,
-            pageNum: row.pageNum,
-            x: row.x,
-            y: row.y,
-            imagePath: row.imagePath
+                id: row.id,
+                pageNum: row.pageNum,
+                x: row.x,
+                y: row.y,
             }));
             setClickLocations(loadedClickLocations);
 

@@ -47,7 +47,11 @@ async function createTable(db) {
         pageNum INTEGER NOT NULL,
         x REAL NOT NULL,
         y REAL NOT NULL,
-        imagePath TEXT
+        imagePath TEXT,
+        description TEXT,
+        severity INTEGER,
+        extent INTEGER,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     `;
     const res = await db.execute(query);
