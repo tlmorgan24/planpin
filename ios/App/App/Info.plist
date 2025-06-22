@@ -47,5 +47,11 @@
 	<true/>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Permission is required to take photos</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Permission is required to add to photo library</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Permission is required to access photo library</string>
 </dict>
 </plist>

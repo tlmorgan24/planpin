@@ -42,7 +42,7 @@ export async function getAllPDFObjects(folder, saveDir) {
 
 }
 
-async function ensureFolderExists(folder, saveDir) {
+export async function ensureFolderExists(folder, saveDir) {
     try {
         await Filesystem.mkdir({
             path: folder,
@@ -122,7 +122,7 @@ export async function saveFile(file, folder, saveDir) {
 }
 
 // Convert file obtained from pdf submitted to HTML form to base64 data:
-async function convertToBase64(file) {
+export async function convertToBase64(file) {
     // FileReader is async but does not return a promise (unlike async function or Promise); it works with callbacks (e.g. onload allows you to execute code on load).
     // So, need to "promisify" to return what we want from the callback:
     return new Promise((resolve, reject) => {

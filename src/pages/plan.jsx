@@ -47,10 +47,10 @@ function PlanProvider({children}) {
         async function func() {
 
             if (!db) return;
-            const res = await db.query('SELECT * FROM markers WHERE pdfPath = ?', [pdfFileName]); // only get data for this PDF
+            const result = await db.query('SELECT id, pageNum, x, y FROM markers WHERE pdfPath = ?', [pdfFileName]); // only get data for this PDF
             // res.values will be an array of rows, or undefined if empty
-            if (!(res.values && res.values.length > 0)) return;
-            const loadedClickLocations = res.values.map(row => ({
+            if (!(result.values && result.values.length > 0)) return;
+            const loadedClickLocations = result.values.map(row => ({
                 id: row.id,
                 pageNum: row.pageNum,
                 x: row.x,
@@ -209,7 +209,7 @@ export function PDFViewer({pdf}) { // pdf is pdf.js pdf object
                     const movementX = Math.abs(touch.clientX - touchStartX);
                     const movementY = Math.abs(touch.clientY - touchStartY);
                     if (movementX < 10 && movementY < 10) { // 10px is typical movement threshold for tap
-                        // event is a tap: dispatch click to MarkerLayer:
+                        // event is a tap: dispatch click to target; which could be a Marker (if click is on Marker) or the MarkerLayer (if on empty space of MarkerLayer):
                         const clickEvent = new MouseEvent('click', {
                             bubbles: true,
                             cancelable: true,
@@ -217,7 +217,7 @@ export function PDFViewer({pdf}) { // pdf is pdf.js pdf object
                             clientX: touch.clientX,
                             clientY: touch.clientY
                         });
-                        markerLayerRef.current.dispatchEvent(clickEvent);
+                        touch.target.dispatchEvent(clickEvent);
                     }
                 }
             }

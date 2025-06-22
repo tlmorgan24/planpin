@@ -31,13 +31,14 @@ export async function initDb() {
     // But native mobile app works. Will just have to do native-only until I'm ready to do a serious cloud sync app
     // (in which case, the Capacitor fallback for browser would be inadequate even if I got it working)
 
-    createTable(db);
+    createMarkersTable(db);
+    createImagesTable(db);
 
     return db
 
 }
 
-async function createTable(db) {
+async function createMarkersTable(db) {
 
     // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
     const query = `
@@ -47,16 +48,40 @@ async function createTable(db) {
         pageNum INTEGER NOT NULL,
         x REAL NOT NULL,
         y REAL NOT NULL,
-        imagePath TEXT,
         description TEXT,
         severity INTEGER,
         extent INTEGER,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     `;
-    const res = await db.execute(query);
-    if (res.changes && res.changes.changes && res.changes.changes < 0) {
+    const result = await db.execute(query);
+    if (result.changes && result.changes.changes && result.changes.changes < 0) {
       throw new Error(`Error: execute failed`);
     }
 
 }
+
+async function createImagesTable(db) {
+
+    // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
+    // This images table will give many-to-one relationship with markers table, as each marker can have mutliple associated images
+    const query = `
+        CREATE TABLE IF NOT EXISTS images (
+        imagePath TEXT PRIMARY KEY,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        markerId TEXT NOT NULL,
+        FOREIGN KEY (markerId) REFERENCES markers(id) ON DELETE CASCADE
+        );
+    `;
+    const result = await db.execute(query);
+    if (result.changes && result.changes.changes && result.changes.changes < 0) {
+      throw new Error(`Error: execute failed`);
+    }
+
+}
+
+/* 
+NOTE: the database's pdfPath and imagePath are currently relative to app's pdf and image folder locations 
+(defined in app context). They are not full file paths. PDFs and images must be in the respective folders.
+Currently, the app is set up to save all PDFs and images at the top level of their respective folders.
+*/
