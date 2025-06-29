@@ -1,10 +1,56 @@
-/* pageCanvas is inside pageContainer of same size, which has overflow hidden to prevent HTML markers going outside canvas boundary */
+/* Define variables: */
+:root {
+  --primary-color: #2d2d2d;
+  --secondary-color: #565656;
+  --accent-color: #e67e22;
+  --text-color: #fefefe;
+  --body-margin: 8px; /* 8px is already default value for body margin, but just in case I want to easily change it later */
+  /* Set usable width and height within body content, such that whole viewport is spanned with no scrolling required: */
+  --usable-width: calc(100vw - 2 * var(--body-margin));
+  --usable-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--body-margin));
+}
+
+/* 
+Set border-box sizing to be default (so now e.g. can set width to --usable-width within body, and there will be no scrolling): 
+If content-box (default) was used instead of border-box, then padding etc. would push element box outside usable width and cause scrolling.
+*/
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+
+body {
+  background-color: var(--primary-color);
+  color: var(--text-color);
+  margin: var(--body-margin);
+}
+
+
+/* 
+pageCanvas & markerLayer will be inside pageContainer of same size, 
+which has overflow hidden to prevent markers going outside canvas boundary.
+To ensure these are same size, whilst also allowing pageContainer to be sized
+flexibly to take up height of viewport (minus content above it), we must make pageContainer
+be both a flex item (of parent planContainer) and flex container itself (with children 
+pageCanvas and markerLayer). Can then make planContainer take up 100% of viewport height;
+make pageContainer grow/shrink as appropriate to fill planContainer; and make pageCanvas and
+markerLayer fill entirety of pageCanvas.
+*/
+
+.planContainer {
+  width: var(--usable-width);
+  height: var(--usable-height);
+  display: flex;
+  flex-direction: column;
+}
 
 .pageContainer {
   position: relative;
-  width: 90vw;
-  height: 90vh;
   overflow: hidden;
+  width: var(--usable-width);
+  border: 1px solid var(--accent-color);
+  flex-grow: 1;
+  flex-shrink: 1;
 }
 
 .pageCanvas {
@@ -13,7 +59,9 @@
   left: 0;
   width: 100%;
   height: 100%;
-  border: 1px solid black;
+  /* Custom properties used in pdf-render.jsx to set colour surrounding the PDF, if PDF is not taking up entire canvas: */
+  --surround-color: var(--secondary-color);
+  --boundary-color: var(--accent-color);
 }
 
 .markerLayer {
@@ -24,7 +72,101 @@
   height: 100%;
 }
 
+
+/* Thumbnails of plans (on home page) */
+
+.thumbnailsContainer {
+  margin: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: center;
+}
+
 .thumbnail {
-  width: 200px;
-  height: 200px;
+  width: 150px;
+  height: 150px;
+  overflow: hidden;
+  border: 1px solid var(--accent-color);
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.thumbnail:hover {
+  transform: scale(1.05);
+}
+
+
+/* Form items (used on Home page for file submission and in Plan page modal for marker information): */
+
+.formItem {
+  width: 400px;
+  max-width: 100%;
+  margin-bottom: 1rem;
+  background-color: var(--secondary-color);
+  border: 1px solid var(--secondary-color);
+  border-radius: 10px;
+  display: flex;
+  align-items: center; /* vertically align label & input */
+}
+
+.formItem label {
+  width: 80px; /* fixed label width */
+  margin-left: 10px;
+  margin-right: 10px;
+  font-weight: bold;
+  /* Inherit border radius at left, but keep zero radius at right: */
+  border-top-left-radius: inherit;
+  border-bottom-left-radius: inherit;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  flex-shrink: 0;
+}
+
+.formItem input {
+  min-width: 150px;
+  padding: 8px;
+  font-size: 1rem; /* provided rem is at least 16px, will prevent iOS' automatic zoom-in to view small form text */
+  /* Invert the usual text and background colours, making the input box stand out: */
+  color: var(--primary-color);
+  background-color: var(--text-color);
+  /* Inherit border radius at right, but keep zero radius at left: */
+  border-top-right-radius: inherit;
+  border-bottom-right-radius: inherit;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  flex-grow: 1; /* input fills entire width left over after label */
+}
+
+
+/* Modal (used on Plan page for adding/editing marker information) */
+
+.modal {
+  position: fixed;
+  /*bottom: env(safe-area-inset-bottom); /* bottom of modal is always at top edge of bottom safe area */
+  /* 
+  ^ Does not work. Seemingly, with position: fixed and safe area insets included, bottom: 0 correponds to top of
+  bottom safe area rather than absolute bottom of viewport (even though AI chatbots seem to disagree).
+  */
+  bottom: 0; /* bottom of modal is always at top edge of bottom safe area */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  max-width: var(--usable-width);
+  max-height: calc(var(--usable-height) * 0.8); /* modal will grow upwards based on size of content, up to this limit ... */
+  overflow: auto; /* ... at which point scrolling is activated */
+  padding: 20px;
+  background-color: var(--primary-color);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.defectImage {
+  max-width: 100%;
+  padding: 10px;
+  border-radius: 5px;
 }

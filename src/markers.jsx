@@ -244,27 +244,34 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     };
 
     return(
-        <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
+        <Modal className="modal" isOpen={isOpen} onRequestClose={onRequestClose}>
             
             <form onSubmit={handleSubmit}>
 
                 <button type="button" onClick={onAddPhoto}>Add image</button>
+                <br/>
 
                 {/* Brief description of defect, e.g. "2mm horizontal crack to internal wall": */}
-                <label htmlFor="description">Description:</label>
-                <input id="description" name="description" type="text" value={formValues.description} onChange={handleFormChange} />
-
+                <div class="formItem">
+                    <label htmlFor="description">Description</label>
+                    <input id="description" name="description" type="text" value={formValues.description} onChange={handleFormChange} />
+                </div>
+                
                 {/* Severity of defect, 0-5 (0 being no defect; 5 being failure): */}
-                <label htmlFor="severity">Severity:</label>
-                <input id="severity" name="severity" type="number" value={formValues.severity} onChange={handleFormChange} />
-
+                <div class="formItem">
+                    <label htmlFor="severity">Severity</label>
+                    <input id="severity" name="severity" type="number" value={formValues.severity} onChange={handleFormChange} />
+                </div>
+                
                 {/* Extent of defect, 0-5 (0 being no defect; 5 being full extent of element): */}
-                <label htmlFor="extent">Extent:</label>
-                <input id="extent" name="extent" type="number" value={formValues.extent} onChange={handleFormChange} />
+                <div class="formItem">
+                    <label htmlFor="extent">Extent</label>
+                    <input id="extent" name="extent" type="number" value={formValues.extent} onChange={handleFormChange} />
+                </div>
 
                 {/* Existing images (in database) associated with defect: */}
                 {imageUris.map((imageUri) => (
-                    <img src={imageUri} style={{ maxWidth: '100%', height: 'auto' }} />
+                    <img className="defectImage" src={imageUri} />
                 ))}
 
                 {/* Newly-added images to defect (not yet in database, but having temporary paths): */}

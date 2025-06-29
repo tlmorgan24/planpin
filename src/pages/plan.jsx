@@ -107,7 +107,7 @@ export default function Plan() {
     
     return(
         <PlanProvider>
-            <div>
+            <div class="planContainer">
 
                 <HomeButton/>
         

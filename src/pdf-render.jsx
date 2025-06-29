@@ -80,7 +80,15 @@ export const PageCanvas = forwardRef(({ page, zoom, scrollX, scrollY, className,
             const offScreenRenderContext = {
                 canvasContext: offScreenContext,
                 transform: transform,
-                viewport: offScreenViewport
+                viewport: offScreenViewport,
+                //background: 'rgb(0, 0, 0)', 
+                /* 
+                ^ Setting background this way works, but background will be the same both in and out of bounds of PDF
+                (i.e., if you set the background to dark grey, the PDF itself will show text etc. over a dark grey background, which we don't want).
+                We want in-bounds PDF background to be white, while out-of-bounds to be another colour for contrast.
+                To do this, we will set render background to be white (this is default, so no need specify background here),
+                and later draw different-coloured rectangles over the out-of-bounds portions.
+                */
             };
 
             // -- Render onto offscreen (source) canvas (which has same aspect ratio as PDF to prevent distortion), then take "window" of visible (destination) canvas' size from this --
@@ -89,10 +97,10 @@ export const PageCanvas = forwardRef(({ page, zoom, scrollX, scrollY, className,
             await page.render(offScreenRenderContext).promise; 
 
             // Coordinates of desired window over offscreen canvas (this window is same size as destination canvas):
-            let windowLeftX = 0;
-            let windowRightX = canvasRef.current.width;
-            let windowTopY = 0;
-            let windowBottomY = canvasRef.current.height;
+            const windowLeftX = 0;
+            const windowRightX = canvasRef.current.width;
+            const windowTopY = 0;
+            const windowBottomY = canvasRef.current.height;
 
             const windowWidth = windowRightX - windowLeftX;
             const windowHeight = windowBottomY - windowTopY;
@@ -106,6 +114,32 @@ export const PageCanvas = forwardRef(({ page, zoom, scrollX, scrollY, className,
                 windowLeftX, windowTopY, // top left corner of destination canvas to which to draw the taken image
                 windowWidth, windowHeight // width and height from destination corner of destination canvas on which to draw the taken image
             );
+
+            // PDF bounds (in visible canvas device pixels):
+            const left = Math.max(translateX, 0);
+            const top = Math.max(translateY, 0);
+            const right = Math.min((translateX + offScreenCanvas.width*zoom), canvasRef.current.width);
+            const bottom = Math.min((translateY + offScreenCanvas.height*zoom), canvasRef.current.height);
+            
+            // Draw out-of-bounds areas with desired colours (defined in custom CSS --fill-color and --boundary-color properties for canvas):
+            const styles = getComputedStyle(canvasRef.current);
+            const outOfBoundsColor = styles.getPropertyValue("--surround-color").trim(); // colour for out-of-bounds areas (e.g. lightblue or #565656)
+            const inBoundsBorderColor = styles.getPropertyValue("--boundary-color").trim(); // colour to border the in-bounds area
+            if (outOfBoundsColor) {
+                context.fillStyle = outOfBoundsColor;
+                // fillRect arguments are: left X, top Y, width, height
+                context.fillRect(0, 0, canvasRef.current.width, top); // fill top out-of-bounds area
+                context.fillRect(0, bottom, canvasRef.current.width, canvasRef.current.height-bottom); // fill bottom out-of-bounds area
+                //context.fillRect(0, top, left, bottom-top); // fill left out-of-bounds area
+                //context.fillRect(right, top, canvasRef.current.width-right, bottom-top); // fill right out-of-bounds area
+                // ^ Instead of above, which has no overlap, deliberately include overlap to avoid thin unfilled lines at fillRect boundaries:
+                context.fillRect(0, 0, left, canvasRef.current.height); // fill left out-of-bounds area (could do "bottom-top" instead of "bottom", but overlap desirable to avoid thin unfilled lines at fillRect boundaries)
+                context.fillRect(right, 0, canvasRef.current.width-right, canvasRef.current.height); // fill right out-of-bounds area (could do "bottom-top" instead of "bottom", but overlap desirable to avoid thin unfilled lines at fillRect boundaries)
+            }
+            if (inBoundsBorderColor) {
+                context.strokeStyle = inBoundsBorderColor; // colour to border the in-bounds area
+                context.strokeRect(left, top, right-left, bottom-top); // apply border to in-bounds area
+            }
 
             if (typeof callback === "function") { // only if callback is provided and is a function
 

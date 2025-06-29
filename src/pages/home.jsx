@@ -43,17 +43,59 @@ export default function Home() {
     return(
         <HomeProvider>
             <div>
+
+                {/* SUBMIT PDF */}
+                <h1>Add a plan</h1>
+                <PDFInputForm/>
             
                 {/* EXISTING PDF PLANS */}
                 <h1>My Plans</h1>
                 <ExistingPlans/>
 
-                {/* SUBMIT PDF */}
-                <h2>Add a plan</h2>
-                <PDFInputForm/>
-
             </div>
         </HomeProvider>
+    );
+}
+
+
+// ---- PDF INPUT FORM ----
+
+function PDFInputForm() {
+
+    const {pdfFolder, saveDir} = useContext(AppContext);
+    const {refreshPDFObjects} = useContext(HomeContext);
+    const [uploadMessage, setUploadMessage] = useState(null);
+    
+    const handleSubmit = async function(e) {
+
+        e.preventDefault();
+
+        // Get & validate pdf file:
+        const fileInput = e.target.elements.fileInput;
+        const file = fileInput.files[0];
+        if (file && file.type === 'application/pdf') {
+            await(saveFile(file, pdfFolder, saveDir)); // file verified to be valid, hence save
+            setUploadMessage('PDF file uploaded successfully!');
+            await refreshPDFObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
+        } else if (file) {
+            setUploadMessage('The file must be a .pdf file.');
+        } else {
+            setUploadMessage('Please upload a file.');
+        }
+        
+    };
+
+    return (
+        <div>
+            <form className="pdfInputForm" onSubmit={handleSubmit}>
+                <div class="formItem">
+                    <label htmlFor="fileInput">File input</label>
+                    <input type="file" name="fileInput" id="fileInput"/>
+                </div>
+                <input type="submit" value="Submit"/>
+            </form>
+            <p>{uploadMessage}</p>
+        </div>
     );
 }
 
@@ -120,46 +162,6 @@ export function ThumbnailViewer({pdf}) { // pdf is pdf.js pdf object
     if (!page) return;
 
     return(
-        <PageCanvas ref={thumbnailRef} page={page} zoom={1} scrollX={0} scrollY={0} className="thumbnail"/>
-    );
-}
-
-
-// ---- PDF INPUT FORM ----
-
-function PDFInputForm() {
-
-    const {pdfFolder, saveDir} = useContext(AppContext);
-    const {refreshPDFObjects} = useContext(HomeContext);
-    const [uploadMessage, setUploadMessage] = useState(null);
-    
-    const handleSubmit = async function(e) {
-
-        e.preventDefault();
-
-        // Get & validate pdf file:
-        const fileInput = e.target.elements.fileInput;
-        const file = fileInput.files[0];
-        if (file && file.type === 'application/pdf') {
-            await(saveFile(file, pdfFolder, saveDir)); // file verified to be valid, hence save
-            setUploadMessage('PDF file uploaded successfully!');
-            await refreshPDFObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
-        } else if (file) {
-            setUploadMessage('The file must be a .pdf file.');
-        } else {
-            setUploadMessage('Please upload a file.');
-        }
-        
-    };
-
-    return (
-        <div>
-            <form id="pdfInputForm" onSubmit={handleSubmit}>
-                <label htmlFor="fileInput">File input</label>
-                <input type="file" name="fileInput" id="fileInput"/>
-                <input type="submit" id="submitFile" value="Submit"/>
-            </form>
-            <p>{uploadMessage}</p>
-        </div>
+        <PageCanvas ref={thumbnailRef} className="thumbnail" page={page} zoom={1} scrollX={0} scrollY={0} />
     );
 }
