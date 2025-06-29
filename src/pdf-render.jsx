@@ -365,7 +365,7 @@ export const InteractivePage = forwardRef(({ page, callback }, interactivePageRe
 
     // Note using ref attribute on React component (PageCanvas) rather than traditional HTML element is allowed here thanks to the fact that PageCanvas was defined as a forwardRef.
     return(
-        <PageCanvas ref={interactivePageRef} page={page} zoom={zoom} scrollX={scrollX} scrollY={scrollY} className="pageCanvas" callback={setStates}/>
+        <PageCanvas ref={interactivePageRef} page={page} zoom={zoom} scrollX={scrollX} scrollY={scrollY} className="page-canvas" callback={setStates}/>
     );
 
 });

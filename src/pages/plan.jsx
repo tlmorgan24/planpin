@@ -107,7 +107,7 @@ export default function Plan() {
     
     return(
         <PlanProvider>
-            <div class="planContainer">
+            <div className="plan-container">
 
                 <HomeButton/>
         
@@ -269,7 +269,7 @@ export function PDFViewer({pdf}) { // pdf is pdf.js pdf object
 
     // Note using ref attribute on React components (InteractivePage & MarkerLayer) rather than traditional HTML elements is allowed here thanks to them having being defined as forwardRefs:
     return(
-        <div className="pageContainer">
+        <div className="page-container">
             <InteractivePage ref={interactivePageRef} page={page} callback={setStates}/>
             <MarkerLayer ref={markerLayerRef} page={page} canvas={canvas} mapping={mapping} drawnWindow={drawnWindow}/>
         </div>

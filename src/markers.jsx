@@ -73,7 +73,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
     }
 
     return(                        
-        <div ref={markerLayerRef} className="markerLayer" onClick={handleClick}>
+        <div ref={markerLayerRef} className="marker-layer" onClick={handleClick}>
             {/* Render markers according to latest markerLocations: */}
             {markerLocations.map(({ id, canvasX, canvasY }) => (
                 <Marker key={id} id={id} canvasX={canvasX} canvasY={canvasY} setClickedId={setClickedId} />
@@ -252,26 +252,26 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 <br/>
 
                 {/* Brief description of defect, e.g. "2mm horizontal crack to internal wall": */}
-                <div class="formItem">
+                <div className="form-item">
                     <label htmlFor="description">Description</label>
                     <input id="description" name="description" type="text" value={formValues.description} onChange={handleFormChange} />
                 </div>
                 
                 {/* Severity of defect, 0-5 (0 being no defect; 5 being failure): */}
-                <div class="formItem">
+                <div className="form-item">
                     <label htmlFor="severity">Severity</label>
                     <input id="severity" name="severity" type="number" value={formValues.severity} onChange={handleFormChange} />
                 </div>
                 
                 {/* Extent of defect, 0-5 (0 being no defect; 5 being full extent of element): */}
-                <div class="formItem">
+                <div className="form-item">
                     <label htmlFor="extent">Extent</label>
                     <input id="extent" name="extent" type="number" value={formValues.extent} onChange={handleFormChange} />
                 </div>
 
                 {/* Existing images (in database) associated with defect: */}
                 {imageUris.map((imageUri) => (
-                    <img className="defectImage" src={imageUri} />
+                    <img className="defect-image" src={imageUri} />
                 ))}
 
                 {/* Newly-added images to defect (not yet in database, but having temporary paths): */}

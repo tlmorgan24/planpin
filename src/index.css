@@ -37,14 +37,14 @@ make pageContainer grow/shrink as appropriate to fill planContainer; and make pa
 markerLayer fill entirety of pageCanvas.
 */
 
-.planContainer {
+.plan-container {
   width: var(--usable-width);
   height: var(--usable-height);
   display: flex;
   flex-direction: column;
 }
 
-.pageContainer {
+.page-container {
   position: relative;
   overflow: hidden;
   width: var(--usable-width);
@@ -53,7 +53,7 @@ markerLayer fill entirety of pageCanvas.
   flex-shrink: 1;
 }
 
-.pageCanvas {
+.page-canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -64,7 +64,7 @@ markerLayer fill entirety of pageCanvas.
   --boundary-color: var(--accent-color);
 }
 
-.markerLayer {
+.marker-layer {
   position: absolute;
   top: 0;
   left: 0;
@@ -75,7 +75,7 @@ markerLayer fill entirety of pageCanvas.
 
 /* Thumbnails of plans (on home page) */
 
-.thumbnailsContainer {
+.thumbnails-container {
   margin: 20px;
   display: flex;
   flex-wrap: wrap;
@@ -101,7 +101,7 @@ markerLayer fill entirety of pageCanvas.
 
 /* Form items (used on Home page for file submission and in Plan page modal for marker information): */
 
-.formItem {
+.form-item {
   width: 400px;
   max-width: 100%;
   margin-bottom: 1rem;
@@ -112,7 +112,7 @@ markerLayer fill entirety of pageCanvas.
   align-items: center; /* vertically align label & input */
 }
 
-.formItem label {
+.form-item label {
   width: 80px; /* fixed label width */
   margin-left: 10px;
   margin-right: 10px;
@@ -125,7 +125,7 @@ markerLayer fill entirety of pageCanvas.
   flex-shrink: 0;
 }
 
-.formItem input {
+.form-item input {
   min-width: 150px;
   padding: 8px;
   font-size: 1rem; /* provided rem is at least 16px, will prevent iOS' automatic zoom-in to view small form text */
@@ -165,7 +165,7 @@ markerLayer fill entirety of pageCanvas.
   border-bottom-right-radius: 0;
 }
 
-.defectImage {
+.defect-image {
   max-width: 100%;
   padding: 10px;
   border-radius: 5px;

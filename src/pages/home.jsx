@@ -87,10 +87,10 @@ function PDFInputForm() {
 
     return (
         <div>
-            <form className="pdfInputForm" onSubmit={handleSubmit}>
-                <div class="formItem">
-                    <label htmlFor="fileInput">File input</label>
-                    <input type="file" name="fileInput" id="fileInput"/>
+            <form className="pdf-input-form" onSubmit={handleSubmit}>
+                <div className="form-item">
+                    <label htmlFor="file-input">File input</label>
+                    <input type="file" name="file-input" id="file-input"/>
                 </div>
                 <input type="submit" value="Submit"/>
             </form>
@@ -115,7 +115,7 @@ function ExistingPlans() {
     return(
         <div>
             <button type="button" onClick={refreshPDFObjects}>Refresh plans</button>
-            <div className="thumbnailsContainer">
+            <div className="thumbnails-container">
                 {Object.entries(pdfObjects).map(([fileName, pdf]) => {
                     const href = `/plan?file=${encodeURIComponent(fileName)}`;
                     return (
