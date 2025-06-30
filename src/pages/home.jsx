@@ -71,7 +71,7 @@ function PDFInputForm() {
         e.preventDefault();
 
         // Get & validate pdf file:
-        const fileInput = e.target.elements.fileInput;
+        const fileInput = e.target.elements["file-input"];
         const file = fileInput.files[0];
         if (file && file.type === 'application/pdf') {
             await(saveFile(file, pdfFolder, saveDir)); // file verified to be valid, hence save
