@@ -7,9 +7,9 @@ import { useNavigate } from "react-router-dom";
 
 export function HomeButton() {
     const navigate = useNavigate()
-    const handleClick = () => {
+    function handleClick() {
         navigate('/'); // Route to Home page as defined in App.jsx
-    };
+    }
     return(
         <button type="button" onClick={handleClick}>Home</button>
     );
@@ -29,17 +29,17 @@ export function NextPageButton() {
         else {
             setVisibility("hidden");
         }
-    }, [pageNum, numPages])
+    }, [pageNum, numPages]);
 
     function handleClick() {
         if (!pageNum || !numPages) return;
         if (pageNum < numPages) {
             setPageNum(pageNum + 1);
         }
-    };
+    }
 
     return(
-        <button type="button" onClick={handleClick} style={{visibility: visibility}}>Next page</button>
+        <button type="button" id="next-page-button" onClick={handleClick} style={{visibility: visibility}}>Next page</button>
     );
 }
 
@@ -55,17 +55,17 @@ export function PreviousPageButton() {
         else {
             setVisibility("hidden");
         }
-    }, [pageNum])
+    }, [pageNum]);
 
-    const handleClick = () => {
+    function handleClick() {
         if (!pageNum) return;
         if (pageNum > 1) {
             setPageNum(pageNum - 1);
         }
-    };
+    }
 
     return(
-        <button type="button" onClick={handleClick} style={{visibility: visibility}}>Previous page</button>
+        <button type="button" id="previous-page-button" onClick={handleClick} style={{visibility: visibility}}>Previous page</button>
     );
 }
 
@@ -73,9 +73,9 @@ export function PreviousPageButton() {
 
 export function ResetViewButton() {
     const {setInteractionState} = useContext(PlanContext);
-    const handleClick = () => {
+    function handleClick() {
         setInteractionState({zoom: 1, scrollX: 0, scrollY: 0})
-    };
+    }
     return(
         <button type="button" onClick={handleClick}>Reset view</button>
     );

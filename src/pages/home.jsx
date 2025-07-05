@@ -1,8 +1,9 @@
 import { useContext, useState, useRef, useEffect, createContext } from "react";
 import { Link } from "react-router-dom";
 import { PageCanvas } from "../pdf-render";
-import { getAllPDFObjects, saveFile } from '../pdf-setup';
+import { getAllPDFObjects, saveFile, removeFile } from '../pdf-setup';
 import { AppContext } from '../App';
+import { DbContext } from "../main";
 
 
 // -- CONTEXT VARIABLES --
@@ -24,7 +25,7 @@ function HomeProvider({children}) {
     // Ensure children, which track pdfObjects, re-run with refreshed pdfObjects on mount and on change of pdfFolder/saveDir:
     useEffect(() => {
         refreshPDFObjects();
-    }, [pdfFolder, saveDir])
+    }, [pdfFolder, saveDir]);
 
     return (
         <HomeContext.Provider value={{
@@ -42,37 +43,35 @@ export default function Home() {
         
     return(
         <HomeProvider>
-            <div>
-
-                {/* SUBMIT PDF */}
-                <h1>Add a plan</h1>
-                <PDFInputForm/>
-            
-                {/* EXISTING PDF PLANS */}
+            <div className="home-container">
                 <h1>My Plans</h1>
-                <ExistingPlans/>
-
+                <RefreshPlansButton/>
+                <Plans/>
+                {/* 
+                Note the PDF input itself is treated like an existing PDF, appearing inside the Plans element.
+                We will apply common styling to it as other thumbnails, making it fit nicely in the layout so that
+                the input button, with its location/sizing, is showing you exactly where the added PDF will go.
+                */}
             </div>
         </HomeProvider>
     );
 }
 
 
-// ---- PDF INPUT FORM ----
+// ---- PDF INPUT ----
 
-function PDFInputForm() {
+function PDFInput() {
 
     const {pdfFolder, saveDir} = useContext(AppContext);
     const {refreshPDFObjects} = useContext(HomeContext);
     const [uploadMessage, setUploadMessage] = useState(null);
     
-    const handleSubmit = async function(e) {
+    const handleUpload = async function(e) {
 
         e.preventDefault();
 
         // Get & validate pdf file:
-        const fileInput = e.target.elements["file-input"];
-        const file = fileInput.files[0];
+        const file = e.target.files[0]; // as we are not using a form, e.target is the file input itself, not the form. So, we do e.target instead of e.target.elements["file-input"]
         if (file && file.type === 'application/pdf') {
             await(saveFile(file, pdfFolder, saveDir)); // file verified to be valid, hence save
             setUploadMessage('PDF file uploaded successfully!');
@@ -86,51 +85,68 @@ function PDFInputForm() {
     };
 
     return (
-        <div>
-            <form className="pdf-input-form" onSubmit={handleSubmit}>
-                <div className="form-item">
-                    <label htmlFor="file-input">File input</label>
-                    <input type="file" name="file-input" id="file-input"/>
-                </div>
-                <input type="submit" value="Submit"/>
-            </form>
+        <div className="pdf-input-container">
+            {/* 
+            File inputs are notoriously hard to style directly. To enable styling, we will
+            hide the actual file input (set display: none) and style the label instead (clicking HTML label
+            automatically triggers the input it is associated with via the "for" attribute).
+
+            We will style the overall pdf-input-container similarly to thumbnails of existing PDFs (e.g. same size), to fit nicely in layout.
+
+            Also, rather than a traditional form with submit button (which would require user to select submit after
+            selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
+            */}
+            <label className="custom-file-input" htmlFor="file-input">File input</label>
+            <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/>
             <p>{uploadMessage}</p>
         </div>
     );
 }
+
+// ---- REFRESH PLANS ----
+
+function RefreshPlansButton() {
+    const {refreshPDFObjects} = useContext(HomeContext);
+    return(
+        <button type="button" onClick={refreshPDFObjects}>Refresh plans</button>
+    );
+}
+
 
 
 // ---- EXISTING PLANS ----
 
 // Gets and displays all existing plans (i.e. all .pdf files) in saveDir as clickable links.
 // Assumes no irrelevant .pdfs in saveDir.
-function ExistingPlans() {
+// Also contains PDF input button to allow adding an existing plan, with button located in the same "thumbnails-container".
+function Plans() {
 
-    const {pdfObjects, refreshPDFObjects} = useContext(HomeContext);
+    const {pdfObjects} = useContext(HomeContext);
     
     // Note refreshPDFObjects is called by HomeProvider (parent) as an effect with pdfFolder and saveDir deps.
     // As ExistingPlans tracks pdfObjects, plans will automatically be updated on mount and if those deps change.
     // So, here, only need to call refreshPDFObjects on click of refresh button. Otherwise, refresh already handled by parent.
     
     return(
-        <div>
-            <button type="button" onClick={refreshPDFObjects}>Refresh plans</button>
-            <div className="thumbnails-container">
-                {Object.entries(pdfObjects).map(([fileName, pdf]) => {
-                    const href = `/plan?file=${encodeURIComponent(fileName)}`;
-                    return (
-                        <Link key={fileName} to={href} className="thumbnail">
+        <div className='thumbnails-container'>
+            <PDFInput/>
+            {Object.entries(pdfObjects).map(([fileName, pdf]) => {
+                const href = `/plan?file=${encodeURIComponent(fileName)}`;
+                return (
+                    <div className='thumbnail'>
+                        <Link className='thumbnail-canvas' key={fileName} to={href}>
                             <ThumbnailViewer pdf={pdf}/>
                         </Link>
-                    );
-                })}
-            </div>
+                        <PDFDeleteButton fileName={fileName}/>
+                    </div>
+                );
+            })}
         </div>
     );
 }
 
 // Simple PDF viewer with no zoom/scroll capability, used only for displaying thumbnails of PDFs:
-export function ThumbnailViewer({pdf}) { // pdf is pdf.js pdf object
+function ThumbnailViewer({pdf}) { // pdf is pdf.js pdf object
     
     const [page, setPage] = useState(null);
     const thumbnailRef = useRef(null); // need to provide ref to call PageCanvas with, as PageCanvas is a forwardRef and uses the reference within its code
@@ -162,6 +178,51 @@ export function ThumbnailViewer({pdf}) { // pdf is pdf.js pdf object
     if (!page) return;
 
     return(
-        <PageCanvas ref={thumbnailRef} className="thumbnail" page={page} zoom={1} scrollX={0} scrollY={0} />
+        <PageCanvas ref={thumbnailRef} className="thumbnail-canvas" page={page} zoom={1} scrollX={0} scrollY={0} />
     );
+}
+
+// Button to delete PDF (identified by fileName input) and all associated database data and images on click:
+function PDFDeleteButton({fileName}) {
+
+    const {pdfFolder, imageFolder, saveDir} = useContext(AppContext);
+    const {db} = useContext(DbContext);
+    const {refreshPDFObjects} = useContext(HomeContext);
+
+    async function handleClick() {
+
+        if (!db) return;
+        const markersResult = await db.query('SELECT id FROM markers WHERE pdfPath = ?', [fileName])
+        // DO NOT DO "if (markersResult.values.length === 0) return;", as even if no markers, we still want to continue to delete markers and PDF
+        let imagePaths = [];
+        if (markersResult.values.length !== 0) {
+            const ids = markersResult.values.map(row => row['id']); // for one PDF, there will be multiple associated markers (we will want to delete all of them)
+            const placeholders = ids.map(() => '?').join(', ') // e.g. if 3 IDs, will equal '?, ?, ?'
+
+            const imagesResult = await db.query(`SELECT imagePath FROM images WHERE markerId IN (${placeholders})`, ids)
+            // DO NOT DO "if (imagesResult.values.length === 0) return;", as even if no images, we still want to continue to delete markers and PDF
+            imagePaths = imagesResult.values.map(row => row['imagePath']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
+        }
+        // ^ if no markers, or if no images associated to relevant markers, imagePaths remains as empty array
+
+        // Remove relevant entries from images database and markers database, and remove stored images and PDF itself from Filesystem:
+        // Explicit deletion from images table unnecessary, seeing as ON DELETE CASCADE is already set up in database, so I have commented this out:
+        /*
+        // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
+        await db.run(`DELETE FROM images WHERE markerId IN (${placeholders})`, ids);
+        */ 
+        await db.run('DELETE FROM markers WHERE pdfPath = ?', [fileName]);
+        for (const imagePath of imagePaths) {
+            await removeFile(imagePath, imageFolder, saveDir);
+        }
+        await removeFile(fileName, pdfFolder, saveDir); // This final line is all that would be required if we were only deleting the PDF file and not the associated data
+
+        await refreshPDFObjects();
+
+    }
+
+    return(
+        <button type="button" className="delete-button" onClick={handleClick}>Delete</button>
+    );
+
 }

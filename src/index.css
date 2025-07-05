@@ -27,17 +27,18 @@ body {
 
 
 /* 
-pageCanvas & markerLayer will be inside pageContainer of same size, 
+pageCanvas & markerLayer will be inside page-container of same size, 
 which has overflow hidden to prevent markers going outside canvas boundary.
-To ensure these are same size, whilst also allowing pageContainer to be sized
-flexibly to take up height of viewport (minus content above it), we must make pageContainer
-be both a flex item (of parent planContainer) and flex container itself (with children 
-pageCanvas and markerLayer). Can then make planContainer take up 100% of viewport height;
-make pageContainer grow/shrink as appropriate to fill planContainer; and make pageCanvas and
+To ensure these are same size, whilst also allowing page-container to be sized
+flexibly to take up height of viewport (minus content above it), we must make page-container
+be both a flex item (of parent plan-container) and flex container itself (with children 
+pageCanvas and markerLayer). Can then make plan-container take up 100% of viewport height;
+make page-container grow/shrink as appropriate to fill plan-container; and make pageCanvas and
 markerLayer fill entirety of pageCanvas.
 */
 
 .plan-container {
+  position: relative; /* set to relative to allow it to be a containing block for children (particularly page buttons) */
   width: var(--usable-width);
   height: var(--usable-height);
   display: flex;
@@ -75,21 +76,33 @@ markerLayer fill entirety of pageCanvas.
 
 /* Thumbnails of plans (on home page) */
 
+.home-container {
+  position: relative; /* set to relative to allow it to be a containing block for children */
+  width: var(--usable-width);
+  height: var(--usable-height);
+}
+
 .thumbnails-container {
-  margin: 20px;
+  position: relative; /* to allow thumbnail to use % units in reference to it */
+  width: 100%;
+  margin-top: 20px;
   display: flex;
   flex-wrap: wrap;
-  gap: 15px;
+  --thumbnail-gap: 15px; /* define as variable, as will be used in child (.thumbnail) class */
+  gap: var(--thumbnail-gap);
   justify-content: center;
 }
 
-.thumbnail {
-  width: 150px;
-  height: 150px;
+.thumbnail, .pdf-input-container { /* we will style the PDF file input to look similar to other thumbnails of existing PDFs (e.g. same size) */
+  position: relative;
+  min-width: 100px;
+  max-width: 250px;
+  aspect-ratio: 1 / 1; /* always square */
   overflow: hidden;
   border: 1px solid var(--accent-color);
   border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  /* If possible within min/max width, aim for 2 items per line, but no flex-grow, as otherwise a lone thumbnail on its row will grow bigger than the other thumbnails: */
+  flex: 0 1 calc(49% - var(--thumbnail-gap)); 
   cursor: pointer;
   transition: transform 0.3s ease;
 }
@@ -98,8 +111,13 @@ markerLayer fill entirety of pageCanvas.
   transform: scale(1.05);
 }
 
+.thumbnail-canvas {
+  width: 100%;
+  height: 100%;
+}
 
-/* Form items (used on Home page for file submission and in Plan page modal for marker information): */
+
+/* Form items (used in Plan page modal for marker information): */
 
 .form-item {
   width: 400px;
@@ -165,8 +183,83 @@ markerLayer fill entirety of pageCanvas.
   border-bottom-right-radius: 0;
 }
 
+.modal form {
+  position: relative;
+  width: 100%;
+}
+
+.defect-image-container {
+  position: relative;
+  width: 100%;
+  margin: 10px;
+  /* 
+  Note we use margin for defect-image-container, so delete-button (which is absolutely positioned relative to this)
+  is unaffected by the margin (note "bottom" property means distance from containing block's bottom PADDING edge to 
+  element's bottom MARGIN edge).
+  */
+}
+
 .defect-image {
-  max-width: 100%;
-  padding: 10px;
+  width: 100%;
+  display: block;
   border-radius: 5px;
+}
+
+
+/* Buttons */
+
+button {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-size: 0.8rem;
+  color: var(--primary-color);
+  background-color: var(--text-color);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.delete-button {
+  position: absolute;
+  margin-bottom: 5px; /* position 5px above bottom of containing block's padding */ 
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* THIS IS PLACEHOLDER, positioning marker delete button in normal flow, so will appear after submit & cancel buttons.
+Can improve to make whole submit/cancel/delete prettier, maybe so that submit/cancel together take up whole width, 
+then marker delete button on its own below that */
+.marker-delete-button {
+  position: static; /* placeholder */
+}
+
+/* 
+We will make page flick buttons be positioned at bottom left and right corners of the PDF viewer.
+Even though (at time of writing), the buttons are not nested inside the PDFViewer or PageCanvas/MarkerLayer elements,
+the fact that those are set to extend exactly to the bottom of plan-container (which our buttons ARE nested in)
+means we can simply set the buttons to be positioned at the bottom left and right corners of plan-container:
+*/
+
+#previous-page-button, #next-page-button {
+  position: absolute;
+  bottom: 0;
+  width: 150px; /* should be easily wide enough for "Previous page" and "Next page" text to fit on one line and for buttons to be same size */
+  max-width: calc(95% / 2); /* just in case screen is ridiculously skinny, to prevent the two buttons overlapping */
+  border: 1px solid var(--accent-color);
+  color: var(--text-color);
+  background-color: var(--primary-color);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+#previous-page-button {
+  left: 0;
+  border-top-left-radius: 0;
+}
+
+#next-page-button {
+  right: 0;
+  border-top-right-radius: 0;
 }

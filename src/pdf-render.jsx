@@ -359,7 +359,7 @@ export const InteractivePage = forwardRef(({ page, callback }, interactivePageRe
     // Enable callback to this component such that (optionally) canvas, mapping and drawnWindow can be passed up to parent
     useEffect(() => {
         callback?.({canvas, mapping, drawnWindow});
-    }, [canvas, mapping, drawnWindow])
+    }, [canvas, mapping, drawnWindow]);
 
     // -- RETURN --
 

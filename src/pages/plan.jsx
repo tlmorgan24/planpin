@@ -48,7 +48,7 @@ function PlanProvider({children}) {
 
             if (!db) return;
             const result = await db.query('SELECT id, pageNum, x, y FROM markers WHERE pdfPath = ?', [pdfFileName]); // only get data for this PDF
-            // res.values will be an array of rows, or undefined if empty
+            // result.values will be an array of rows, or undefined if empty
             if (!(result.values && result.values.length > 0)) return;
             const loadedClickLocations = result.values.map(row => ({
                 id: row.id,
@@ -60,7 +60,7 @@ function PlanProvider({children}) {
 
         }
         func();
-    }, [db, pdfFileName]) // NB: changes to db do not trigger re-run; only triggers when db references different database (i.e. if db was intiially null and is now referencing the database object, it will run)
+    }, [db, pdfFileName]); // NB: changes to db do not trigger re-run; only triggers when db references different database (i.e. if db was intiially null and is now referencing the database object, it will run)
 
     // ^ MAY WISH TO CHANGE clickLocations SUCH THAT ID IS THE KEY AND EVERYTHING ELSE IS THE VALUE, FOR EASIER REFERENCE LATER (E.G. get the image associated with X ID)
 
@@ -115,12 +115,12 @@ export default function Plan() {
 
                 <h1>PDF Plan</h1>
 
-                <NextPageButton/>
-                <PreviousPageButton/>
                 <ResetViewButton/>
                 <br/>
 
                 <PDFViewer pdf={pdf}/>
+                <PreviousPageButton/>
+                <NextPageButton/>
 
             </div>
         </PlanProvider>
@@ -131,7 +131,7 @@ export default function Plan() {
 // -- PDF VIEWER --
 
 // Advanced PDF viewer comprising interactive page with zoom/scroll capability and marker layer to show stored click locations:
-export function PDFViewer({pdf}) { // pdf is pdf.js pdf object
+function PDFViewer({pdf}) { // pdf is pdf.js pdf object
 
     const [page, setPage] = useState(null); // will be set to pdf.js page object
     const {pageNum, setNumPages} = useContext(PlanContext); // will be set to page number of current page

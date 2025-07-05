@@ -147,3 +147,16 @@ async function fileExists(fileName, folder, saveDir) {
         return false; // file doesn't yet exist (can save immediately)
     }
 }
+
+
+// ---- DELETE FILE ----
+
+// Delete saved file from Capacitor Filesystem:
+export async function removeFile(fileName, folder, saveDir) {
+
+    await Filesystem.deleteFile({
+        path: `${folder}/${fileName}`,
+        directory: saveDir,
+    });
+    
+}

@@ -1,9 +1,10 @@
-import { forwardRef, useContext, useState, useEffect, useRef } from "react";
+import { forwardRef, useContext, useState, useEffect } from "react";
 import { PlanContext } from "./pages/plan";
 import { AppContext } from "./App";
 import { DbContext } from "./main";
 import Modal from 'react-modal';
 import { captureImage, saveImage, getImageUri } from "./image-setup";
+import { removeFile } from "./pdf-setup";
 
 // ---- MARKER COMPONENT ----
 
@@ -65,7 +66,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
     async function handleClick(e) {
         if (!mapping || !drawnWindow) return;
         if (e.target == markerLayerRef.current) { // click is not on a Marker; it is on blank space of the MarkerLayer itself
-            await addMarker(e, mapping, drawnWindow, pageNum, clickLocations, setClickLocations, setClickedId);
+            await addMarker(e, mapping, drawnWindow, pageNum, setClickLocations, setClickedId);
             // ^ Thanks to the if statement, we ensure e.target is the MarkerLayer itself. 
             // This is important, as addMarker assumes e.target has same location & dimensions as canvas.
             // As per our CSS, MarkerLayer does have same location & dimensions as canvas. 
@@ -88,7 +89,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
 
 // ---- MARKER FORM ----
 
-// When user adds a marker (see addMarker function), this modal form will pop up to allow them to input additional details about the defect:
+// When user adds a marker (see addMarker function) or clicks on existing marker, this modal form will pop up to allow them to input additional details about the defect:
 
 function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations, pdfFileName, db }) {
 
@@ -99,14 +100,15 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     */
 
     const {saveDir, imageFolder} = useContext(AppContext);
-    const [imageUris, setImageUris] = useState([]); // will be array of paths for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
+    const [imagePaths, setImagePaths] = useState([]); // will be array of paths for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
+    const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imagePaths
     const [newImages, setNewImages] = useState([]); // will be array of image objects for each NEWLY ADDED image to the marker.
+    const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
     const [formValues, setFormValues] = useState({description: null, severity: null, extent: null});
 
     const [isOpen, setIsOpen] = useState(false);
-    const formRef = useRef(null);
 
     // Open form on change of clickedId (meaning user has just added a marker or clicked on an existing marker):
     useEffect(() => {
@@ -136,43 +138,50 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             // Get already-saved image paths for this marker (won't be any if new marker, but may be 1 or more if re-selecting existing marker):
             const imagesResult = await db.query('SELECT imagePath FROM images WHERE markerId = ?', [clickedId]);
-            if (imagesResult.values.length === 0) return; // no images yet
-            const imagePaths = imagesResult.values.map(row => row['imagePath']);
+            const imagePaths = imagesResult.values.map(row => row['imagePath']); // if no images, imagePaths will be empty array, no problem
             // Below commented-out line would not work, as await not allowed here. Using promise as below gets around this.
             // const imageUris = imagePaths.map(imagePath => await getImageUri(imagePath, imageFolder, saveDir))
             const imageUris = await Promise.all(imagePaths.map(async imagePath => {
                 return await getImageUri(imagePath, imageFolder, saveDir);
             }));
+            setImagePaths(imagePaths);
             setImageUris(imageUris);
+
+            // See if marker already in database or not:
+            const result = await db.query(
+                'SELECT EXISTS ( SELECT 1 FROM markers WHERE id = ? )', 
+                [clickedId]
+            );
+            const markerExists = Object.values(result.values[0])[0] === 1;
+            setMarkerInDb(markerExists);
 
         }
         func();
-    }, [clickedId])
+    }, [clickedId]);
+
+    // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
+    function closeModal() {
+        setClickedId(null);
+        setNewImages([]);
+        setImageUris([]);
+        setMarkerInDb(false);
+        setFormValues({description: null, severity: null, extent: null});
+        setIsOpen(false); // finally, close the modal
+    }
     
     // If user requests close without pressing submit, close form and without submitting to database and erase the marker just added:
     async function onRequestClose() {
 
-        // Check if marker already exists in database (if it does, we will not erase it from clickLocations, as it is not a just-added marker; user was instead clicking on an existing marker):
-        const result = await db.query(
-            'SELECT EXISTS ( SELECT 1 FROM markers WHERE id = ? )', 
-            [clickedId]
-        );
-        const markerExists = Object.values(result.values[0])[0] === 1;
-        if (!markerExists) {
-            setClickLocations(clickLocations.filter(loc => loc.id !== clickedId)); // erase marker just added (could just pop the last item, but we're doing by ID to be safe, just in case last item somehow isn't the just-clicked marker)
+        if (!markerInDb) {
+            setClickLocations(prev => prev.filter(loc => loc.id !== clickedId)); // erase marker just added (could just pop the last item, but we're doing by ID to be safe, just in case last item somehow isn't the just-clicked marker)
         }
-
-        setClickedId(null);
-        setNewImages([]);
-        setImageUris([]);
-        setFormValues({description: null, severity: null, extent: null});
-        setIsOpen(false);
+        closeModal();
 
     }
 
     async function onAddPhoto() {
         const image = await captureImage(); // image object is as saved from Camera.getPhoto
-        setNewImages([...newImages, image]); // add new image to newImages array
+        setNewImages(prev => [...prev, image]); // add new image to newImages array
     }
 
     // When user presses submit, submit to database and close form:
@@ -189,14 +198,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         const severity = formValues.severity;
         const extent = formValues.extent;
 
-        // Check if marker already exists in database:
-        const result = await db.query(
-            'SELECT EXISTS ( SELECT 1 FROM markers WHERE id = ? )', 
-            [clickedId]
-        );
-        const markerExists = Object.values(result.values[0])[0] === 1;
-
-        if (markerExists) {
+        if (markerInDb) {
             // Edit existing entry in markers table of database:
             await db.run(`
                 UPDATE markers 
@@ -217,8 +219,6 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             );
         }
 
-        // NOTE: I CURRENTLY DO NOT HAVE A WAY TO DELETE EXISTING PHOTOS - WILL NEED TO ADD THIS FUNCTIONALITY
-
         // Save images and submit paths to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
         for (const image of newImages) {
             const imagePath = await saveImage(image, imageFolder, saveDir);
@@ -231,11 +231,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             );
         }
 
-        setClickedId(null);
-        setNewImages([]);
-        setImageUris([]);
-        setFormValues({description: null, severity: null, extent: null});
-        setIsOpen(false);
+        closeModal();
+
     }
 
     function handleFormChange(event) {
@@ -270,22 +267,112 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 </div>
 
                 {/* Existing images (in database) associated with defect: */}
-                {imageUris.map((imageUri) => (
+                {imageUris.map((imageUri, i) => (
+                <div className="defect-image-container">
                     <img className="defect-image" src={imageUri} />
+                    <ImageDeleteButton index={i} imagePaths={imagePaths} setImagePaths={setImagePaths} setImageUris={setImageUris}/>
+                </div>
                 ))}
 
                 {/* Newly-added images to defect (not yet in database, but having temporary paths): */}
-                {newImages.map((image) => (
-                    <img src={image.webPath} style={{ maxWidth: '100%', height: 'auto' }} />
+                {newImages.map((image, i) => (
+                <div className="defect-image-container">
+                    <img className="defect-image" src={image.webPath} />
+                    <NewImageDeleteButton index={i} setNewImages={setNewImages}/>
+                </div>
                 ))}
 
                 <button type="submit">Submit</button>
                 <button type="button" onClick={onRequestClose}>Cancel</button>
 
+                <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal}/>
+
             </form>
+
 
         </Modal>
     );
+}
+
+// Button to delete image (identified by index of imagePaths and imageUris array):
+function ImageDeleteButton({index, imagePaths, setImagePaths, setImageUris}) {
+
+    const {imageFolder, saveDir} = useContext(AppContext);
+    const {db} = useContext(DbContext);
+
+    async function handleClick() {
+
+        const imagePath = imagePaths[index];
+            
+        await db.run('DELETE FROM images WHERE imagePath = ?', [imagePath]);
+        await removeFile(imagePath, imageFolder, saveDir);
+    
+        // Remove image from relevant states (triggering re-render of images):
+        setImagePaths(prev => prev.filter((_, i) => i !== index)); // sets imagePaths to new array with same items as previous array, except without item at specified index
+        setImageUris(prev => prev.filter((_, i) => i !== index));
+
+    }
+
+    return(
+        <button type="button" className="delete-button" onClick={handleClick}>Delete image</button>
+    );
+
+}
+
+// Button to delete newly-added image which isn't yet in database (identified by index of newImages array):
+function NewImageDeleteButton({index, setNewImages}) {
+
+    async function handleClick() {
+        // Remove image from newImages state (triggering re-render of images):
+        setNewImages(prev => prev.filter((_, i) => i !== index)); // sets newImages to new array with same items as previous array, except without item at specified index
+    }
+
+    return(
+        <button type="button" className="delete-button" onClick={handleClick}>Delete image</button>
+    );
+
+}
+
+// Button to delete marker:
+function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal}) {
+
+    const {imageFolder, saveDir} = useContext(AppContext);
+    const {db} = useContext(DbContext);
+
+    const [display, setDisplay] = useState('none');
+
+    useEffect(() => {
+        if (markerInDb) {
+            setDisplay(undefined); // make no change to display property (use existing CSS value)
+        }
+        else {
+            setDisplay('none'); // do not display delete button (marker does not exist in database, so only options should be to submit or cancel)
+        }
+    }, [markerId, markerInDb]);
+
+    async function handleClick() {
+        
+        const imagesResult = await db.query('SELECT imagePath FROM images WHERE markerId = ?', [markerId]);
+        const imagePaths = imagesResult.values.map(row => row['imagePath']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
+        
+        // Explicit deletion from images table unnecessary, seeing as ON DELETE CASCADE is already set up in database
+        //await db.run('DELETE FROM images WHERE markerId = ?', [markerId]);
+        await db.run('DELETE FROM markers WHERE id = ?', [markerId]); // remove marker from database
+
+        for (const imagePath of imagePaths) {
+            await removeFile(imagePath, imageFolder, saveDir); // remove images from Filesystem if associated with marker 
+        }
+
+        setClickLocations(prev => prev.filter(loc => loc.id !== markerId)); // visually erase marker
+
+        closeModal();
+
+    }
+ 
+    return(
+        <button type="button" className="marker-delete-button" onClick={handleClick} style={{display: display}}>Delete marker</button>
+    );
+
 }
 
 
@@ -293,9 +380,9 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
 // Add click location to clickLocations (context variable) based on user's click and current zoom and scroll:
 // Has knock-on effect of visibly adding a marker at that location.
-// NB clickLocations and setClickLocations comes from useContext(PlanContext), but cannot be called here as this is not a React component.
+// NB setClickLocations comes from useContext(PlanContext).
 // NOTE: assumes event target is the canvas itself (or an overlain element with same dimensions & position as canvas)
-async function addMarker(e, mapping, drawnWindow, pageNum, clickLocations, setClickLocations, setClickedId) {
+async function addMarker(e, mapping, drawnWindow, pageNum, setClickLocations, setClickedId) {
 
     const id = crypto.randomUUID(); // ID for marker to add (will always be unique)
 
@@ -314,7 +401,7 @@ async function addMarker(e, mapping, drawnWindow, pageNum, clickLocations, setCl
     
     // Add to clickLocations:
     const newClickLocation = { id:id, pageNum: pageNum, x: pdfX, y: pdfY };
-    setClickLocations([...clickLocations, newClickLocation]);
+    setClickLocations(prev => [...prev, newClickLocation]); // add newClickLocation to clickLocations state
     // ^ This will automatically cause marker to be added to canvas, because clickLocations and is a dep for MarkerLayer's useEffect block (which calls drawMarkers below)
     setClickedId(id);
     // ^ This will trigger re-render of form modal (because clickedId is a dep for FormModal's useEffect block), so form for extra info will pop up, and the just-clicked location plus inputted data can all be sent to database in one go when form is submitted
