@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { PageCanvas } from "../pdf-render";
 import { getAllPDFObjects, saveFile, removeFile } from '../pdf-setup';
 import { AppContext } from '../App';
-import { DbContext } from "../main";
+import { DbContext, UserContext } from "../main";
 
 
 // -- CONTEXT VARIABLES --
@@ -63,6 +63,8 @@ export default function Home() {
 
 function PDFInput() {
 
+    const {db} = useContext(DbContext);
+    const {userId} = useContext(UserContext);
     const {pdfFolder, saveDir} = useContext(AppContext);
     const {refreshPDFObjects} = useContext(HomeContext);
     const [uploadMessage, setUploadMessage] = useState(null);
@@ -75,10 +77,22 @@ function PDFInput() {
 
         // Get & validate pdf file:
         const file = e.target.files[0]; // as we are not using a form, e.target is the file input itself, not the form. So, we do e.target instead of e.target.elements["file-input"]
-        if (file && file.type === 'application/pdf') {
-            await(saveFile(file, pdfFolder, saveDir)); // file verified to be valid, hence save
+        
+        if (file && file.type === 'application/pdf') { // file verified to be valid, hence save
+
+            const fileName = await saveFile(file, pdfFolder, saveDir);
+            
+            const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
+            await db.run(`
+                INSERT INTO plans (id, user_id, pdf_filename) 
+                VALUES (?, ?, ?)
+                `,
+                [id, userId, fileName]
+            );
+
             setUploadMessage('PDF file uploaded successfully!');
             await refreshPDFObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
+        
         } else if (file) {
             setUploadMessage('The file must be a .pdf file.');
         } else {
@@ -190,13 +204,17 @@ function PDFDeleteButton({fileName}) {
 
     const {pdfFolder, imageFolder, saveDir} = useContext(AppContext);
     const {db} = useContext(DbContext);
+    const {userId} = useContext(UserContext);
     const {refreshPDFObjects} = useContext(HomeContext);
 
     async function handleClick() {
 
         if (!db || pdfFolder === undefined || imageFolder === undefined) return;
 
-        const markersResult = await db.query('SELECT id FROM markers WHERE pdf_filename = ?', [fileName])
+        const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ?', [fileName, userId]);
+        const planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
+
+        const markersResult = await db.query('SELECT id FROM markers WHERE plan_id = ?', [planId]);
         // DO NOT DO "if (markersResult.values.length === 0) return;", as even if no markers, we still want to continue to delete markers and PDF
         let imageFileNames = [];
         if (markersResult.values.length !== 0) {
@@ -215,7 +233,7 @@ function PDFDeleteButton({fileName}) {
         // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
         await db.run(`DELETE FROM images WHERE marker_id IN (${placeholders})`, ids);
         */ 
-        await db.run('DELETE FROM markers WHERE pdf_filename = ?', [fileName]);
+        await db.run('DELETE FROM markers WHERE plan_id = ?', [planId]);
         for (const imageFileName of imageFileNames) {
             await removeFile(imageFileName, imageFolder, saveDir);
         }

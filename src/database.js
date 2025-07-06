@@ -1,6 +1,7 @@
 import { JeepSqlite } from 'jeep-sqlite/dist/components/jeep-sqlite';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
+import { removeFile } from './pdf-setup';
 
 export async function initDb() {
 
@@ -32,6 +33,7 @@ export async function initDb() {
     // (in which case, the Capacitor fallback for browser would be inadequate even if I got it working)
 
     await createUsersTable(db);
+    await createPlansTable(db);
     await createMarkersTable(db);
     await createImagesTable(db);
 
@@ -82,14 +84,57 @@ async function createUsersTable(db) {
 
 }
 
+async function createPlansTable(db) {
+
+    // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
+    const tableCreationStatement = `
+        CREATE TABLE IF NOT EXISTS plans (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            pdf_filename TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            synced_at TIMESTAMP,
+            deleted_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+    `;
+    const result = await db.execute(tableCreationStatement);
+    if (result.changes && result.changes.changes && result.changes.changes < 0) {
+        throw new Error('Error: execute failed');
+    }
+
+    // Add trigger to update "updated_at" field automatically when record is updated:
+    // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
+
+    const queryResult = await db.query(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'trigger' AND name = 'plans_trigger'
+    `);
+
+    if (queryResult.values.length === 0) { // trigger does not yet exist
+
+        const triggerCreationStatement = `
+            CREATE TRIGGER plans_trigger
+            AFTER UPDATE ON plans
+            FOR EACH ROW
+            BEGIN
+                UPDATE plans SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+            END; 
+        `
+        await db.execute(triggerCreationStatement);
+        
+    }
+
+}
+
 async function createMarkersTable(db) {
 
     // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
     const tableCreationStatement = `
         CREATE TABLE IF NOT EXISTS markers (
             id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            pdf_filename TEXT NOT NULL,
+            plan_id TEXT NOT NULL,
             page_number INTEGER NOT NULL,
             x REAL NOT NULL,
             y REAL NOT NULL,
@@ -102,7 +147,7 @@ async function createMarkersTable(db) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             synced_at TIMESTAMP,
             deleted_at TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
         );
     `;
     const result = await db.execute(tableCreationStatement);
@@ -180,15 +225,68 @@ async function createImagesTable(db) {
 }
 
 /* 
-NOTE: this makes use of a "deleted_at" column for soft deletes. This means, when a user deletes something, 
-we set deleted_at to the time it was deleted, instead of deleting the record entirely. That way, when syncing with cloud, it's easier
+NOTE: above makes use of a "deleted_at" column for soft deletes. This means, when a user deletes something, 
+we will set deleted_at to the time it was deleted, instead of deleting the record entirely. That way, when syncing with cloud, it's easier
 for cloud database to know what's been deleted, so it can be properly deleted from both local and cloud database when synced.
 
-This means we must make sure that, when querying anything, we should generally add the condition that deleted_at = NULL
+This means we must make sure that, when querying anything, we should generally add the condition that deleted_at IS NULL
 (otherwise, e.g. markers that are supposed to be deleted will show up, etc.).
+
+On app start up, we will clean up local file storage and local database by removing
+records & files entirely if a record has been marked as deleted for more than 30 days.
+
+We will also (remains to be seen exactly how) clean up the cloud storage in a similar way.
 */
 
 /* 
 NOTE: the database only stores pdf_filename and image_filename (not full file path), as these are relative to user's pdf and image folder locations 
 (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
 */
+
+export async function cleanUpLocalFiles(db, pdfFolder, imageFolder, saveDir) {
+
+    if (!db || pdfFolder === undefined || imageFolder === undefined) return;
+
+    const imagesResult = await db.query(`
+        SELECT image_filename 
+        FROM images 
+        WHERE deleted_at IS NOT NULL 
+            AND deleted_at < datetime('now', '-30 days')
+    `)
+    const imageFileNames = imagesResult.values.map(row => row['image_filename']);
+    for (const imageFileName of imageFileNames) {
+        await removeFile(imageFileName, imageFolder, saveDir)
+    }
+
+    const markersResult = await db.query(`
+        SELECT pdf_filename 
+        FROM markers 
+        WHERE deleted_at IS NOT NULL 
+            AND deleted_at < datetime('now', '-30 days')
+    `)
+    const pdfFileNames = markersResult.values.map(row => row['pdf_filename']);
+    for (const pdfFileName of pdfFileNames) {
+        await removeFile(pdfFileName, pdfFolder, saveDir)
+    }
+
+}
+
+export async function cleanUpLocalDb(db) {
+
+    if (!db) return;
+
+    // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
+
+    await db.run(`
+        DELETE FROM images
+        WHERE deleted_at IS NOT NULL 
+            AND deleted_at < datetime('now', '-30 days')
+    `)
+
+    await db.run(`
+        DELETE FROM markers
+        WHERE deleted_at IS NOT NULL 
+            AND deleted_at < datetime('now', '-30 days')
+    `)
+
+}

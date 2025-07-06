@@ -5,7 +5,7 @@ import { InteractivePage } from "../pdf-render";
 import { MarkerLayer } from "../markers";
 import { readPDF, loadPDF } from "../pdf-setup";
 import { AppContext } from "../App";
-import { DbContext } from "../main";
+import { DbContext, UserContext } from "../main";
 
 
 // -- CONTEXT VARIABLES --
@@ -16,11 +16,11 @@ export const PlanContext = createContext();
 // Define context provider:
 function PlanProvider({children}) {
 
-    // pdfFileName (as passed to this component when user clicked on thumbnail on homepage):
     const location = useLocation();
     const params = new URLSearchParams(location.search);
-    const [pdfFileName, setPDFFileName] = useState(params.get('file')); // pdf fileName at end of path (e.g. "myplan.pdf")
+    const pdfFileName = params.get('file'); // pdf fileName at end of path (e.g. "myplan.pdf"), as passed to this component when user clicked on thumbnail on homepage
 
+    const [planId, setPlanId] = useState(null); // unique ID for the plan
     const [numPages, setNumPages] = useState(1); // number of pages in PDF (initialised to 1)
     const [pageNum, setPageNum] = useState(1); // page number (initialised to 1)
 
@@ -41,33 +41,41 @@ function PlanProvider({children}) {
         // Database will be filtered to the PDF currently being viewed (pdfFileName), so all location objects are for the current PDF.
         // Additional data (e.g. imagePath, description, etc.) is unnecessary for purposes of displaying marker locations, so will only be fetched when a marker is clicked.
     const [clickLocations, setClickLocations] = useState([]); // initially empty
-    // Get clickLocations from markers database:
+    
     const {db} = useContext(DbContext);
+    const {userId} = useContext(UserContext);
+
+    // Get clickLocations from markers database:
     useEffect(() => {
         async function func() {
 
             if (!db) return;
-            const result = await db.query('SELECT id, page_number, x, y FROM markers WHERE pdf_filename = ?', [pdfFileName]); // only get data for this PDF
-            // result.values will be an array of rows, or undefined if empty
-            if (!(result.values && result.values.length > 0)) return;
-            const loadedClickLocations = result.values.map(row => ({
-                id: row.id,
-                pageNum: row.page_number,
-                x: row.x,
-                y: row.y,
-            }));
-            setClickLocations(loadedClickLocations);
+
+            console.log("useEffect running...");
+
+            const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ?', [pdfFileName, userId]);
+            const planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
+            
+            const markersResult = await db.query('SELECT id, page_number, x, y FROM markers WHERE plan_id = ?', [planId]); // only get data for this PDF
+            // markersResult.values will be an array of rows (empty if no rows)
+            if (markersResult.values.length > 0) {
+                const loadedClickLocations = markersResult.values.map(row => ({
+                    id: row.id,
+                    pageNum: row.page_number,
+                    x: row.x,
+                    y: row.y,
+                }));
+                setClickLocations(loadedClickLocations);
+            }
+            setPlanId(planId);
 
         }
         func();
     }, [db, pdfFileName]); // NB: changes to db do not trigger re-run; only triggers when db references different database (i.e. if db was intiially null and is now referencing the database object, it will run)
 
-    // ^ MAY WISH TO CHANGE clickLocations SUCH THAT ID IS THE KEY AND EVERYTHING ELSE IS THE VALUE, FOR EASIER REFERENCE LATER (E.G. get the image associated with X ID)
-
-
     return (
         <PlanContext.Provider value={{
-        pdfFileName, setPDFFileName,
+        planId, setPlanId,
         numPages, setNumPages,
         pageNum, setPageNum,
         interactionState, setInteractionState,

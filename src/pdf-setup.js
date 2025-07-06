@@ -119,6 +119,9 @@ export async function saveFile(file, folder, saveDir) {
         data: base64Data,
         directory: saveDir,
     });
+
+    return newName;
+    
 }
 
 // Convert file obtained from pdf submitted to HTML form to base64 data:
