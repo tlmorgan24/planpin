@@ -47,12 +47,12 @@ function PlanProvider({children}) {
         async function func() {
 
             if (!db) return;
-            const result = await db.query('SELECT id, pageNum, x, y FROM markers WHERE pdfPath = ?', [pdfFileName]); // only get data for this PDF
+            const result = await db.query('SELECT id, page_number, x, y FROM markers WHERE pdf_filename = ?', [pdfFileName]); // only get data for this PDF
             // result.values will be an array of rows, or undefined if empty
             if (!(result.values && result.values.length > 0)) return;
             const loadedClickLocations = result.values.map(row => ({
                 id: row.id,
-                pageNum: row.pageNum,
+                pageNum: row.page_number,
                 x: row.x,
                 y: row.y,
             }));
@@ -94,6 +94,7 @@ export default function Plan() {
     const [pdf, setPDF] = useState(null);
     useEffect(() => {
         async function func() {
+            if (pdfFolder === undefined) return;
             const pdfData = await readPDF(fileName, pdfFolder, saveDir); // pdf data as Uint8Array
             const pdf = await loadPDF(pdfData); // pdf is pdf.js pdf object
             setPDF(pdf);

@@ -158,5 +158,5 @@ export async function removeFile(fileName, folder, saveDir) {
         path: `${folder}/${fileName}`,
         directory: saveDir,
     });
-    
+
 }

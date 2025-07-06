@@ -117,6 +117,15 @@ markerLayer fill entirety of pageCanvas.
 }
 
 
+/* Login screen */
+
+.login-container {
+  position: relative; /* set to relative to allow it to be a containing block for children */
+  width: var(--usable-width);
+  height: var(--usable-height);
+}
+
+
 /* Form items (used in Plan page modal for marker information): */
 
 .form-item {

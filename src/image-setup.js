@@ -9,6 +9,7 @@ export async function captureImage() {
         resultType: CameraResultType.Uri, // could get Base64 data with .Base64, but leaves out other necessary properties (e.g. path). Will convert to base64 manually later.
         // source: CameraSource.Camera, // this would only use the camera to take a photo; leaving blank means options for both photo and library image
         // quality: 90, // this would set image quality (0-100, higher being better quality). Optional, for now leave it out.
+        allowEditing: true, // allow user to make small edits to captured image (only if just-captured photo, not possible if photo from library)
     });
 
     if (!(image.format == 'jpeg' || image.format == 'png')) {

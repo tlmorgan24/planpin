@@ -31,32 +31,105 @@ export async function initDb() {
     // But native mobile app works. Will just have to do native-only until I'm ready to do a serious cloud sync app
     // (in which case, the Capacitor fallback for browser would be inadequate even if I got it working)
 
-    createMarkersTable(db);
-    createImagesTable(db);
+    await createUsersTable(db);
+    await createMarkersTable(db);
+    await createImagesTable(db);
 
     return db
+
+}
+
+async function createUsersTable(db) { 
+
+    // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
+    const tableCreationStatement = `
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            email TEXT,
+            password TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            synced_at TIMESTAMP,
+            deleted INTEGER DEFAULT 0
+        );
+    `;
+    const result = await db.execute(tableCreationStatement);
+    if (result.changes && result.changes.changes && result.changes.changes < 0) {
+        throw new Error('Error: execute failed');
+    }
+
+    // Add trigger to update "updated_at" field automatically when record is updated:
+    // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
+
+    const queryResult = await db.query(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'trigger' AND name = 'users_trigger'
+    `);
+
+    if (queryResult.values.length === 0) { // trigger does not yet exist
+
+        const triggerCreationStatement = `
+            CREATE TRIGGER users_trigger
+            AFTER UPDATE ON users
+            FOR EACH ROW
+            BEGIN
+                UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+            END; 
+        `
+        await db.execute(triggerCreationStatement);
+        
+    }
 
 }
 
 async function createMarkersTable(db) {
 
     // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
-    const query = `
+    const tableCreationStatement = `
         CREATE TABLE IF NOT EXISTS markers (
-        id TEXT PRIMARY KEY,
-        pdfPath TEXT NOT NULL,
-        pageNum INTEGER NOT NULL,
-        x REAL NOT NULL,
-        y REAL NOT NULL,
-        description TEXT,
-        severity INTEGER,
-        extent INTEGER,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            pdf_filename TEXT NOT NULL,
+            page_number INTEGER NOT NULL,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            reference TEXT,
+            category TEXT,
+            description TEXT,
+            severity INTEGER,
+            extent INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            synced_at TIMESTAMP,
+            deleted_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
     `;
-    const result = await db.execute(query);
+    const result = await db.execute(tableCreationStatement);
     if (result.changes && result.changes.changes && result.changes.changes < 0) {
-      throw new Error(`Error: execute failed`);
+        throw new Error('Error: execute failed');
+    }
+
+    // Add trigger to update "updated_at" field automatically when record is updated:
+    // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
+
+    const queryResult = await db.query(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'trigger' AND name = 'markers_trigger'
+    `);
+
+    if (queryResult.values.length === 0) { // trigger does not yet exist
+
+        const triggerCreationStatement = `
+            CREATE TRIGGER markers_trigger
+            AFTER UPDATE ON markers
+            FOR EACH ROW
+            BEGIN
+                UPDATE markers SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+            END; 
+        `
+        await db.execute(triggerCreationStatement);
+        
     }
 
 }
@@ -65,23 +138,57 @@ async function createImagesTable(db) {
 
     // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
     // This images table will give many-to-one relationship with markers table, as each marker can have mutliple associated images
-    const query = `
+    const tableCreationStatement = `
         CREATE TABLE IF NOT EXISTS images (
-        imagePath TEXT PRIMARY KEY,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        markerId TEXT NOT NULL,
-        FOREIGN KEY (markerId) REFERENCES markers(id) ON DELETE CASCADE
+            id TEXT PRIMARY KEY,
+            marker_id TEXT NOT NULL,
+            image_filename TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            synced_at TIMESTAMP,
+            deleted INTEGER DEFAULT 0,
+            FOREIGN KEY (marker_id) REFERENCES markers(id) ON DELETE CASCADE
         );
     `;
-    const result = await db.execute(query);
+    const result = await db.execute(tableCreationStatement);
     if (result.changes && result.changes.changes && result.changes.changes < 0) {
-      throw new Error(`Error: execute failed`);
+        throw new Error('Error: execute failed');
+    }
+
+    // Add trigger to update "updated_at" field automatically when record is updated:
+    // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
+
+    const queryResult = await db.query(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'trigger' AND name = 'images_trigger'
+    `);
+
+    if (queryResult.values.length === 0) { // trigger does not yet exist
+
+        const triggerCreationStatement = `
+            CREATE TRIGGER images_trigger
+            AFTER UPDATE ON images
+            FOR EACH ROW
+            BEGIN
+                UPDATE images SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+            END; 
+        `
+        await db.execute(triggerCreationStatement);
+        
     }
 
 }
 
 /* 
-NOTE: the database's pdfPath and imagePath are currently relative to app's pdf and image folder locations 
-(defined in app context). They are not full file paths. PDFs and images must be in the respective folders.
-Currently, the app is set up to save all PDFs and images at the top level of their respective folders.
+NOTE: this makes use of a "deleted_at" column for soft deletes. This means, when a user deletes something, 
+we set deleted_at to the time it was deleted, instead of deleting the record entirely. That way, when syncing with cloud, it's easier
+for cloud database to know what's been deleted, so it can be properly deleted from both local and cloud database when synced.
+
+This means we must make sure that, when querying anything, we should generally add the condition that deleted_at = NULL
+(otherwise, e.g. markers that are supposed to be deleted will show up, etc.).
+*/
+
+/* 
+NOTE: the database only stores pdf_filename and image_filename (not full file path), as these are relative to user's pdf and image folder locations 
+(defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
 */

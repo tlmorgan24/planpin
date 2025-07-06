@@ -1,6 +1,7 @@
 import { forwardRef, useContext, useState, useEffect } from "react";
 import { PlanContext } from "./pages/plan";
 import { AppContext } from "./App";
+import { UserContext } from "./main";
 import { DbContext } from "./main";
 import Modal from 'react-modal';
 import { captureImage, saveImage, getImageUri } from "./image-setup";
@@ -94,19 +95,20 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
 function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations, pdfFileName, db }) {
 
     /* 
-    NOTE: the database's pdfPath and imagePath are currently relative to app's pdf and image folder locations 
-    (defined in app context). They are not full file paths. PDFs and images must be in the respective folders.
-    Currently, the app is set up to save all PDFs and images at the top level of their respective folders.
+    NOTE: the database only stores pdf_filename and image_filename (not full file path), as these are relative to user's pdf and image folder locations 
+    (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
     */
 
+    const {userId} = useContext(UserContext); // note we are confident userId is not undefined here, as higher up in app logic, login screen is shown if ever userId is undefined
     const {saveDir, imageFolder} = useContext(AppContext);
-    const [imagePaths, setImagePaths] = useState([]); // will be array of paths for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
-    const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imagePaths
+
+    const [imageFileNames, setImageFileNames] = useState([]); // will be array of file names for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
+    const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imageFileNames
     const [newImages, setNewImages] = useState([]); // will be array of image objects for each NEWLY ADDED image to the marker.
     const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
-    const [formValues, setFormValues] = useState({description: null, severity: null, extent: null});
+    const [formValues, setFormValues] = useState({reference: null, category: null, description: null, severity: null, extent: null});
 
     const [isOpen, setIsOpen] = useState(false);
 
@@ -114,7 +116,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     useEffect(() => {
         async function func() {
 
-            if (!clickedId) return; // on first render (when user has not yet clicked), do not open form
+            if (!clickedId || imageFolder === undefined) return; // on first render (when user has not yet clicked), do not open form
             /* 
             Also note, clickedId will be reset to null whenever form is closed/submitted (see other functions). This way,
             the user will be able to click again on the just-added marker, and the useEffect will still register
@@ -126,25 +128,27 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             setIsOpen(true);
 
             // Get current data to set form values to (if marker already exists in database):
-            const markersResult = await db.query('SELECT description, severity, extent FROM markers WHERE id = ?', [clickedId]);
+            const markersResult = await db.query('SELECT reference, category, description, severity, extent FROM markers WHERE id = ?', [clickedId]);
             const row = markersResult.values[0]; // query should return one row (if marker exists) or zero rows (if no marker exists). If latter, row will return undefined
             if (!row) return; // new marker; no database data yet; will not update default form inputs or attempt to get images below
             const existingValues = {
+                reference: row.reference,
+                category: row.category,
                 description: row.description,
                 severity: row.severity,
                 extent: row.extent,
             };
             setFormValues(existingValues);
 
-            // Get already-saved image paths for this marker (won't be any if new marker, but may be 1 or more if re-selecting existing marker):
-            const imagesResult = await db.query('SELECT imagePath FROM images WHERE markerId = ?', [clickedId]);
-            const imagePaths = imagesResult.values.map(row => row['imagePath']); // if no images, imagePaths will be empty array, no problem
+            // Get already-saved image file names for this marker (won't be any if new marker, but may be 1 or more if re-selecting existing marker):
+            const imagesResult = await db.query('SELECT image_filename FROM images WHERE marker_id = ?', [clickedId]);
+            const imageFileNames = imagesResult.values.map(row => row['image_filename']); // if no images, imageFileNames will be empty array, no problem
             // Below commented-out line would not work, as await not allowed here. Using promise as below gets around this.
-            // const imageUris = imagePaths.map(imagePath => await getImageUri(imagePath, imageFolder, saveDir))
-            const imageUris = await Promise.all(imagePaths.map(async imagePath => {
-                return await getImageUri(imagePath, imageFolder, saveDir);
+            // const imageUris = imageFileNames.map(imageFileName => await getImageUri(imageFileName, imageFolder, saveDir))
+            const imageUris = await Promise.all(imageFileNames.map(async imageFileName => {
+                return await getImageUri(imageFileName, imageFolder, saveDir);
             }));
-            setImagePaths(imagePaths);
+            setImageFileNames(imageFileNames);
             setImageUris(imageUris);
 
             // See if marker already in database or not:
@@ -165,7 +169,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         setNewImages([]);
         setImageUris([]);
         setMarkerInDb(false);
-        setFormValues({description: null, severity: null, extent: null});
+        setFormValues({reference: null, category: null, description: null, severity: null, extent: null});
         setIsOpen(false); // finally, close the modal
     }
     
@@ -189,11 +193,15 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         
         e.preventDefault();
 
+        if (imageFolder === undefined) return;
+ 
         const clickLocation = clickLocations.find(loc => loc.id === clickedId);
         const pageNum = clickLocation.pageNum;
         const x = clickLocation.x;
         const y = clickLocation.y;
         
+        const reference = formValues.reference;
+        const category = formValues.category;
         const description = formValues.description;
         const severity = formValues.severity;
         const extent = formValues.extent;
@@ -202,32 +210,33 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             // Edit existing entry in markers table of database:
             await db.run(`
                 UPDATE markers 
-                SET description = ?, severity = ?, extent = ? 
+                SET reference = ?, category = ?, description = ?, severity = ?, extent = ? 
                 WHERE id = ?
                 `,
-                [description, severity, extent, clickedId]
+                [reference, category, description, severity, extent, clickedId]
             );
         }
 
         else {
             // Create new entry in markers table of database:
             await db.run(`
-                INSERT INTO markers (id, pdfPath, pageNum, x, y, description, severity, extent) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO markers (id, user_id, pdf_filename, page_number, x, y, reference, category, description, severity, extent) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `,
-                [clickedId, pdfFileName, pageNum, x, y, description, severity, extent]
+                [clickedId, userId, pdfFileName, pageNum, x, y, reference, category, description, severity, extent]
             );
         }
 
-        // Save images and submit paths to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
+        // Save images and submit file names to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
         for (const image of newImages) {
-            const imagePath = await saveImage(image, imageFolder, saveDir);
+            const imageId = crypto.randomUUID(); // ID for image to add (will always be unique)
+            const imageFileName = await saveImage(image, imageFolder, saveDir);
             // Submit to images table of database:
             await db.run(`
-                INSERT INTO images (imagePath, markerId) 
-                VALUES (?, ?)
+                INSERT INTO images (id, marker_id, image_filename) 
+                VALUES (?, ?, ?)
                 `,
-                [imagePath, clickedId]
+                [imageId, clickedId, imageFileName]
             );
         }
 
@@ -247,6 +256,18 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
                 <button type="button" onClick={onAddPhoto}>Add image</button>
                 <br/>
+
+                {/* Defect reference, e.g. "#001": */}
+                <div className="form-item">
+                    <label htmlFor="reference">Reference</label>
+                    <input id="reference" name="reference" type="text" value={formValues.reference} onChange={handleFormChange} />
+                </div>
+
+                {/* Defect category, e.g. "Internal walls": */}
+                <div className="form-item">
+                    <label htmlFor="category">Category</label>
+                    <input id="category" name="category" type="text" value={formValues.category} onChange={handleFormChange} />
+                </div>
 
                 {/* Brief description of defect, e.g. "2mm horizontal crack to internal wall": */}
                 <div className="form-item">
@@ -270,7 +291,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 {imageUris.map((imageUri, i) => (
                 <div className="defect-image-container">
                     <img className="defect-image" src={imageUri} />
-                    <ImageDeleteButton index={i} imagePaths={imagePaths} setImagePaths={setImagePaths} setImageUris={setImageUris}/>
+                    <ImageDeleteButton index={i} imageFileNames={imageFileNames} setImageFileNames={setImageFileNames} setImageUris={setImageUris}/>
                 </div>
                 ))}
 
@@ -294,21 +315,23 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     );
 }
 
-// Button to delete image (identified by index of imagePaths and imageUris array):
-function ImageDeleteButton({index, imagePaths, setImagePaths, setImageUris}) {
+// Button to delete image (identified by index of imageFileNames and imageUris array):
+function ImageDeleteButton({index, imageFileNames, setImageFileNames, setImageUris}) {
 
     const {imageFolder, saveDir} = useContext(AppContext);
     const {db} = useContext(DbContext);
 
     async function handleClick() {
 
-        const imagePath = imagePaths[index];
+        if (imageFolder === undefined) return;
+
+        const imageFileName = imageFileNames[index];
             
-        await db.run('DELETE FROM images WHERE imagePath = ?', [imagePath]);
-        await removeFile(imagePath, imageFolder, saveDir);
+        await db.run('DELETE FROM images WHERE image_filename = ?', [imageFileName]);
+        await removeFile(imageFileName, imageFolder, saveDir);
     
         // Remove image from relevant states (triggering re-render of images):
-        setImagePaths(prev => prev.filter((_, i) => i !== index)); // sets imagePaths to new array with same items as previous array, except without item at specified index
+        setImageFileNames(prev => prev.filter((_, i) => i !== index)); // sets imageFileNames to new array with same items as previous array, except without item at specified index
         setImageUris(prev => prev.filter((_, i) => i !== index));
 
     }
@@ -351,16 +374,18 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
     }, [markerId, markerInDb]);
 
     async function handleClick() {
+
+        if (imageFolder === undefined) return;
         
-        const imagesResult = await db.query('SELECT imagePath FROM images WHERE markerId = ?', [markerId]);
-        const imagePaths = imagesResult.values.map(row => row['imagePath']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
+        const imagesResult = await db.query('SELECT image_filename FROM images WHERE marker_id = ?', [markerId]);
+        const imageFileNames = imagesResult.values.map(row => row['image_filename']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
         
         // Explicit deletion from images table unnecessary, seeing as ON DELETE CASCADE is already set up in database
-        //await db.run('DELETE FROM images WHERE markerId = ?', [markerId]);
+        //await db.run('DELETE FROM images WHERE marker_id = ?', [markerId]);
         await db.run('DELETE FROM markers WHERE id = ?', [markerId]); // remove marker from database
 
-        for (const imagePath of imagePaths) {
-            await removeFile(imagePath, imageFolder, saveDir); // remove images from Filesystem if associated with marker 
+        for (const imageFileName of imageFileNames) {
+            await removeFile(imageFileName, imageFolder, saveDir); // remove images from Filesystem if associated with marker 
         }
 
         setClickLocations(prev => prev.filter(loc => loc.id !== markerId)); // visually erase marker

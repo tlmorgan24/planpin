@@ -18,6 +18,7 @@ function HomeProvider({children}) {
     const [pdfObjects, setPDFObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
     
     async function refreshPDFObjects() {
+        if (pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
         const pdfObjects = await getAllPDFObjects(pdfFolder, saveDir);
         setPDFObjects(pdfObjects);
     };
@@ -33,7 +34,7 @@ function HomeProvider({children}) {
         }}>
             {children}
         </HomeContext.Provider>
-  );
+    );
 }
 
 
@@ -69,6 +70,8 @@ function PDFInput() {
     const handleUpload = async function(e) {
 
         e.preventDefault();
+
+        if (pdfFolder === undefined) return;
 
         // Get & validate pdf file:
         const file = e.target.files[0]; // as we are not using a form, e.target is the file input itself, not the form. So, we do e.target instead of e.target.elements["file-input"]
@@ -191,29 +194,30 @@ function PDFDeleteButton({fileName}) {
 
     async function handleClick() {
 
-        if (!db) return;
-        const markersResult = await db.query('SELECT id FROM markers WHERE pdfPath = ?', [fileName])
+        if (!db || pdfFolder === undefined || imageFolder === undefined) return;
+
+        const markersResult = await db.query('SELECT id FROM markers WHERE pdf_filename = ?', [fileName])
         // DO NOT DO "if (markersResult.values.length === 0) return;", as even if no markers, we still want to continue to delete markers and PDF
-        let imagePaths = [];
+        let imageFileNames = [];
         if (markersResult.values.length !== 0) {
             const ids = markersResult.values.map(row => row['id']); // for one PDF, there will be multiple associated markers (we will want to delete all of them)
             const placeholders = ids.map(() => '?').join(', ') // e.g. if 3 IDs, will equal '?, ?, ?'
 
-            const imagesResult = await db.query(`SELECT imagePath FROM images WHERE markerId IN (${placeholders})`, ids)
+            const imagesResult = await db.query(`SELECT image_filename FROM images WHERE marker_id IN (${placeholders})`, ids)
             // DO NOT DO "if (imagesResult.values.length === 0) return;", as even if no images, we still want to continue to delete markers and PDF
-            imagePaths = imagesResult.values.map(row => row['imagePath']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
+            imageFileNames = imagesResult.values.map(row => row['image_filename']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
         }
-        // ^ if no markers, or if no images associated to relevant markers, imagePaths remains as empty array
+        // ^ if no markers, or if no images associated to relevant markers, imageFileNames remains as empty array
 
         // Remove relevant entries from images database and markers database, and remove stored images and PDF itself from Filesystem:
         // Explicit deletion from images table unnecessary, seeing as ON DELETE CASCADE is already set up in database, so I have commented this out:
         /*
         // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
-        await db.run(`DELETE FROM images WHERE markerId IN (${placeholders})`, ids);
+        await db.run(`DELETE FROM images WHERE marker_id IN (${placeholders})`, ids);
         */ 
-        await db.run('DELETE FROM markers WHERE pdfPath = ?', [fileName]);
-        for (const imagePath of imagePaths) {
-            await removeFile(imagePath, imageFolder, saveDir);
+        await db.run('DELETE FROM markers WHERE pdf_filename = ?', [fileName]);
+        for (const imageFileName of imageFileNames) {
+            await removeFile(imageFileName, imageFolder, saveDir);
         }
         await removeFile(fileName, pdfFolder, saveDir); // This final line is all that would be required if we were only deleting the PDF file and not the associated data
 
