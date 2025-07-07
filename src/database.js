@@ -52,7 +52,7 @@ async function createUsersTable(db) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             synced_at TIMESTAMP,
-            deleted INTEGER DEFAULT 0
+            deleted_at TIMESTAMP
         );
     `;
     const result = await db.execute(tableCreationStatement);
@@ -191,7 +191,7 @@ async function createImagesTable(db) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             synced_at TIMESTAMP,
-            deleted INTEGER DEFAULT 0,
+            deleted_at TIMESTAMP,
             FOREIGN KEY (marker_id) REFERENCES markers(id) ON DELETE CASCADE
         );
     `;
@@ -232,8 +232,9 @@ for cloud database to know what's been deleted, so it can be properly deleted fr
 This means we must make sure that, when querying anything, we should generally add the condition that deleted_at IS NULL
 (otherwise, e.g. markers that are supposed to be deleted will show up, etc.).
 
-On app start up, we will clean up local file storage and local database by removing
-records & files entirely if a record has been marked as deleted for more than 30 days.
+On user login, we will clean up local file storage and local database by removing 
+records & files entirely if a record has been marked as deleted for more than 30 days AND EITHER 
+the record is synced with cloud OR the user is a guest (no cloud sync to worry about). See login.jsx.
 
 We will also (remains to be seen exactly how) clean up the cloud storage in a similar way.
 */
@@ -242,51 +243,3 @@ We will also (remains to be seen exactly how) clean up the cloud storage in a si
 NOTE: the database only stores pdf_filename and image_filename (not full file path), as these are relative to user's pdf and image folder locations 
 (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
 */
-
-export async function cleanUpLocalFiles(db, pdfFolder, imageFolder, saveDir) {
-
-    if (!db || pdfFolder === undefined || imageFolder === undefined) return;
-
-    const imagesResult = await db.query(`
-        SELECT image_filename 
-        FROM images 
-        WHERE deleted_at IS NOT NULL 
-            AND deleted_at < datetime('now', '-30 days')
-    `)
-    const imageFileNames = imagesResult.values.map(row => row['image_filename']);
-    for (const imageFileName of imageFileNames) {
-        await removeFile(imageFileName, imageFolder, saveDir)
-    }
-
-    const markersResult = await db.query(`
-        SELECT pdf_filename 
-        FROM markers 
-        WHERE deleted_at IS NOT NULL 
-            AND deleted_at < datetime('now', '-30 days')
-    `)
-    const pdfFileNames = markersResult.values.map(row => row['pdf_filename']);
-    for (const pdfFileName of pdfFileNames) {
-        await removeFile(pdfFileName, pdfFolder, saveDir)
-    }
-
-}
-
-export async function cleanUpLocalDb(db) {
-
-    if (!db) return;
-
-    // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
-
-    await db.run(`
-        DELETE FROM images
-        WHERE deleted_at IS NOT NULL 
-            AND deleted_at < datetime('now', '-30 days')
-    `)
-
-    await db.run(`
-        DELETE FROM markers
-        WHERE deleted_at IS NOT NULL 
-            AND deleted_at < datetime('now', '-30 days')
-    `)
-
-}

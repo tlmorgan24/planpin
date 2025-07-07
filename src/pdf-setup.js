@@ -12,7 +12,8 @@ import 'pdfjs-dist/build/pdf.worker';
 // ---- GET PDF OBJECTS ----
 
 // Return all PDFs in folder of saveDir as object, with file names as keys and pdf.js pdf objects as values:
-export async function getAllPDFObjects(folder, saveDir) {
+// fileNamesFilter, if defined, means only the PDFs in the folder that match a name in fileNamesFilter are returned
+export async function getPdfObjects(folder, saveDir, fileNamesFilter=undefined) {
 
     // Get the list of files in the Documents directory:
     ensureFolderExists(folder, saveDir); // create folder if doesn't yet exist (created folder will be empty, so function we are in will ultimately just return an empty object without throwing error)
@@ -25,8 +26,9 @@ export async function getAllPDFObjects(folder, saveDir) {
     // Get file names from result:
     let fileNames = [];
     for (const readdirObject of result.files) { // each of these is a readdir file object with its own properties such as name.
-        if (readdirObject.name.endsWith('.pdf')) { // ignore non-PDF files
-            fileNames.push(readdirObject.name);
+        const fileName = readdirObject.name;
+        if (fileName.endsWith('.pdf') && (fileNamesFilter === undefined || fileNamesFilter.includes(fileName))) { // ignore non-PDF files and any files outside the fileNamesFilter (if specified)
+            fileNames.push(fileName);
         } 
     }
 
@@ -121,7 +123,7 @@ export async function saveFile(file, folder, saveDir) {
     });
 
     return newName;
-    
+
 }
 
 // Convert file obtained from pdf submitted to HTML form to base64 data:

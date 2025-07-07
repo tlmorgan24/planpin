@@ -53,10 +53,10 @@ function PlanProvider({children}) {
 
             console.log("useEffect running...");
 
-            const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ?', [pdfFileName, userId]);
+            const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ? AND deleted_at IS NULL', [pdfFileName, userId]);
             const planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
             
-            const markersResult = await db.query('SELECT id, page_number, x, y FROM markers WHERE plan_id = ?', [planId]); // only get data for this PDF
+            const markersResult = await db.query('SELECT id, page_number, x, y FROM markers WHERE plan_id = ? AND deleted_at IS NULL', [planId]); // only get data for this PDF
             // markersResult.values will be an array of rows (empty if no rows)
             if (markersResult.values.length > 0) {
                 const loadedClickLocations = markersResult.values.map(row => ({

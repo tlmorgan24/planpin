@@ -1,12 +1,14 @@
 import { useContext, useState, useRef, useEffect, createContext } from "react";
 import { Link } from "react-router-dom";
 import { PageCanvas } from "../pdf-render";
-import { getAllPDFObjects, saveFile, removeFile } from '../pdf-setup';
+import { getPdfObjects, saveFile } from '../pdf-setup';
 import { AppContext } from '../App';
 import { DbContext, UserContext } from "../main";
 
 
 // -- CONTEXT VARIABLES --
+// ****** NOTE: I THINK HOME CONTEXT IS NOT USED ANYWHERE APART FROM THIS HOME SCRIPT ITSELF.
+// MAYBE I CAN CLEAN THINGS UP SO THAT THERE IS NO NEED TO DEFINE HOME CONTEXT? Something to consider fur future
 
 // Define context object:
 const HomeContext = createContext();
@@ -14,23 +16,29 @@ const HomeContext = createContext();
 // Define context provider:
 function HomeProvider({children}) {
 
+    const {userId} = useContext(UserContext);
+    const {db} = useContext(DbContext);
     const {pdfFolder, saveDir} = useContext(AppContext);
-    const [pdfObjects, setPDFObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
+    const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
     
-    async function refreshPDFObjects() {
-        if (pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
-        const pdfObjects = await getAllPDFObjects(pdfFolder, saveDir);
-        setPDFObjects(pdfObjects);
+    async function refreshPdfObjects() {
+
+        if (!saveDir || pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
+        const plansResult = await db.query('SELECT pdf_filename FROM plans WHERE user_id = ? AND deleted_at IS NULL', [userId]);
+        const fileNamesFilter = plansResult.values.map(row => row['pdf_filename']); // array of all pdf_filenames belonging to the user that have not been soft deleted
+        const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
+        setPdfObjects(pdfObjects);
+
     };
 
     // Ensure children, which track pdfObjects, re-run with refreshed pdfObjects on mount and on change of pdfFolder/saveDir:
     useEffect(() => {
-        refreshPDFObjects();
+        refreshPdfObjects();
     }, [pdfFolder, saveDir]);
 
     return (
         <HomeContext.Provider value={{
-            pdfObjects, refreshPDFObjects
+            pdfObjects, refreshPdfObjects
         }}>
             {children}
         </HomeContext.Provider>
@@ -66,7 +74,7 @@ function PDFInput() {
     const {db} = useContext(DbContext);
     const {userId} = useContext(UserContext);
     const {pdfFolder, saveDir} = useContext(AppContext);
-    const {refreshPDFObjects} = useContext(HomeContext);
+    const {refreshPdfObjects} = useContext(HomeContext);
     const [uploadMessage, setUploadMessage] = useState(null);
     
     const handleUpload = async function(e) {
@@ -91,7 +99,7 @@ function PDFInput() {
             );
 
             setUploadMessage('PDF file uploaded successfully!');
-            await refreshPDFObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
+            await refreshPdfObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
         
         } else if (file) {
             setUploadMessage('The file must be a .pdf file.');
@@ -123,9 +131,9 @@ function PDFInput() {
 // ---- REFRESH PLANS ----
 
 function RefreshPlansButton() {
-    const {refreshPDFObjects} = useContext(HomeContext);
+    const {refreshPdfObjects} = useContext(HomeContext);
     return(
-        <button type="button" onClick={refreshPDFObjects}>Refresh plans</button>
+        <button type="button" onClick={refreshPdfObjects}>Refresh plans</button>
     );
 }
 
@@ -140,9 +148,9 @@ function Plans() {
 
     const {pdfObjects} = useContext(HomeContext);
     
-    // Note refreshPDFObjects is called by HomeProvider (parent) as an effect with pdfFolder and saveDir deps.
+    // Note refreshPdfObjects is called by HomeProvider (parent) as an effect with pdfFolder and saveDir deps.
     // As ExistingPlans tracks pdfObjects, plans will automatically be updated on mount and if those deps change.
-    // So, here, only need to call refreshPDFObjects on click of refresh button. Otherwise, refresh already handled by parent.
+    // So, here, only need to call refreshPdfObjects on click of refresh button. Otherwise, refresh already handled by parent.
     
     return(
         <div className='thumbnails-container'>
@@ -202,44 +210,41 @@ function ThumbnailViewer({pdf}) { // pdf is pdf.js pdf object
 // Button to delete PDF (identified by fileName input) and all associated database data and images on click:
 function PDFDeleteButton({fileName}) {
 
-    const {pdfFolder, imageFolder, saveDir} = useContext(AppContext);
     const {db} = useContext(DbContext);
     const {userId} = useContext(UserContext);
-    const {refreshPDFObjects} = useContext(HomeContext);
+    const {refreshPdfObjects} = useContext(HomeContext);
 
     async function handleClick() {
 
-        if (!db || pdfFolder === undefined || imageFolder === undefined) return;
+        console.log("Delete button clicked!");
+        console.log("plans table before deletion code: ", await db.query('SELECT * FROM plans'));
+
+        if (!db) return;
 
         const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ?', [fileName, userId]);
         const planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
+        // ^ note, we are confident plansResult.values will not be empty, and that the returned id has not been deleted, because if the PDFDeleteButton is being shown (i.e. was retrieved by refreshPdfObjects), the plan must exist and be non-soft-deleted in the database
 
-        const markersResult = await db.query('SELECT id FROM markers WHERE plan_id = ?', [planId]);
-        // DO NOT DO "if (markersResult.values.length === 0) return;", as even if no markers, we still want to continue to delete markers and PDF
-        let imageFileNames = [];
+        const markersResult = await db.query('SELECT id FROM markers WHERE plan_id = ? AND deleted_at IS NULL', [planId]);
         if (markersResult.values.length !== 0) {
-            const ids = markersResult.values.map(row => row['id']); // for one PDF, there will be multiple associated markers (we will want to delete all of them)
-            const placeholders = ids.map(() => '?').join(', ') // e.g. if 3 IDs, will equal '?, ?, ?'
+            const markerIds = markersResult.values.map(row => row['id']); // for one PDF, there will be multiple associated markers (we will want to delete all of them)
+            const markerIdPlaceholders = markerIds.map(() => '?').join(', ') // e.g. if 3 IDs, will equal '?, ?, ?'
 
-            const imagesResult = await db.query(`SELECT image_filename FROM images WHERE marker_id IN (${placeholders})`, ids)
-            // DO NOT DO "if (imagesResult.values.length === 0) return;", as even if no images, we still want to continue to delete markers and PDF
-            imageFileNames = imagesResult.values.map(row => row['image_filename']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
+            // Even though ON DELETE CASCADE is already set up in database, only works for hard deletion, so for soft-deletion, need to manually get the images associated with the deleted marker:
+            // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
+            // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
+            // Likewise, deletion from markers table must come before deletion from plans table.
+            await db.run(`UPDATE images SET deleted_at = CURRENT_TIMESTAMP WHERE marker_id IN (${markerIdPlaceholders}) AND deleted_at IS NULL`, markerIds) // the "AND deleted_at IS NULL" means we don't reset the deleted_at of already-deleted records (which would artificially extend their lifetime and potentially cause bugs)
+            await db.run('UPDATE markers SET deleted_at = CURRENT_TIMESTAMP WHERE plan_id = ?', [planId]);
         }
-        // ^ if no markers, or if no images associated to relevant markers, imageFileNames remains as empty array
 
-        // Remove relevant entries from images database and markers database, and remove stored images and PDF itself from Filesystem:
-        // Explicit deletion from images table unnecessary, seeing as ON DELETE CASCADE is already set up in database, so I have commented this out:
-        /*
-        // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
-        await db.run(`DELETE FROM images WHERE marker_id IN (${placeholders})`, ids);
-        */ 
-        await db.run('DELETE FROM markers WHERE plan_id = ?', [planId]);
-        for (const imageFileName of imageFileNames) {
-            await removeFile(imageFileName, imageFolder, saveDir);
-        }
-        await removeFile(fileName, pdfFolder, saveDir); // This final line is all that would be required if we were only deleting the PDF file and not the associated data
+        await db.run('UPDATE plans SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [planId]);
+        
+        // Note we are not deleting the files from local storage here, as that will happen during clean up 30 days later (see database.jsx)
 
-        await refreshPDFObjects();
+        console.log("plans table after deletion code: ", await db.query('SELECT * FROM plans'));
+
+        await refreshPdfObjects();
 
     }
 

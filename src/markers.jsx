@@ -1,10 +1,9 @@
 import { forwardRef, useContext, useState, useEffect } from "react";
 import { PlanContext } from "./pages/plan";
 import { AppContext } from "./App";
-import { DbContext, UserContext } from "./main";
+import { DbContext } from "./main";
 import Modal from 'react-modal';
 import { captureImage, saveImage, getImageUri } from "./image-setup";
-import { removeFile } from "./pdf-setup";
 
 // ---- MARKER COMPONENT ----
 
@@ -127,7 +126,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             setIsOpen(true);
 
             // Get current data to set form values to (if marker already exists in database):
-            const markersResult = await db.query('SELECT reference, category, description, severity, extent FROM markers WHERE id = ?', [clickedId]);
+            const markersResult = await db.query('SELECT reference, category, description, severity, extent FROM markers WHERE id = ? AND deleted_at IS NULL', [clickedId]);
             const row = markersResult.values[0]; // query should return one row (if marker exists) or zero rows (if no marker exists). If latter, row will return undefined
             if (!row) return; // new marker; no database data yet; will not update default form inputs or attempt to get images below
             const existingValues = {
@@ -140,7 +139,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             setFormValues(existingValues);
 
             // Get already-saved image file names for this marker (won't be any if new marker, but may be 1 or more if re-selecting existing marker):
-            const imagesResult = await db.query('SELECT id, image_filename FROM images WHERE marker_id = ?', [clickedId]);
+            const imagesResult = await db.query('SELECT id, image_filename FROM images WHERE marker_id = ? AND deleted_at IS NULL', [clickedId]);
             const imageIds = imagesResult.values.map(row => row['id']); // if no images, imageIds will be empty array, no problem
             const imageFileNames = imagesResult.values.map(row => row['image_filename']); // if no images, imageFileNames will be empty array, no problem
             // Below commented-out line would not work, as await not allowed here. Using promise as below gets around this.
@@ -318,21 +317,12 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 // Button to delete image (identified by index of imageIds and imageUris array):
 function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
 
-    const {imageFolder, saveDir} = useContext(AppContext);
     const {db} = useContext(DbContext);
 
     async function handleClick() {
 
-        if (imageFolder === undefined) return;
-
         const imageId = imageIds[index];
-
-        // Will delete this soon when moving to soft delete instead of hard delete:
-        const imagesResult = await db.query('SELECT image_filename FROM images WHERE id = ?', [imageId]);
-        const imageFileName = imagesResult.values[0]['image_filename']; // there will only be one image, so take first element
-        await removeFile(imageFileName, imageFolder, saveDir);
-            
-        await db.run('DELETE FROM images WHERE id = ?', [imageId]);
+        await db.run('UPDATE images SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [imageId]);
     
         // Remove image from relevant states (triggering re-render of images):
         setImageIds(prev => prev.filter((_, i) => i !== index)); // sets imageIds to new array with same items as previous array, except without item at specified index
@@ -363,7 +353,6 @@ function NewImageDeleteButton({index, setNewImages}) {
 // Button to delete marker:
 function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal}) {
 
-    const {imageFolder, saveDir} = useContext(AppContext);
     const {db} = useContext(DbContext);
 
     const [display, setDisplay] = useState('none');
@@ -378,22 +367,14 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
     }, [markerId, markerInDb]);
 
     async function handleClick() {
-
-        if (imageFolder === undefined) return;
         
-        const imagesResult = await db.query('SELECT image_filename FROM images WHERE marker_id = ?', [markerId]);
-        const imageFileNames = imagesResult.values.map(row => row['image_filename']); // for one PDF id, there may be multiple associated images (we will want to delete all of them)
-        
-        // Explicit deletion from images table unnecessary, seeing as ON DELETE CASCADE is already set up in database
-        //await db.run('DELETE FROM images WHERE marker_id = ?', [markerId]);
-        await db.run('DELETE FROM markers WHERE id = ?', [markerId]); // remove marker from database
-
-        for (const imageFileName of imageFileNames) {
-            await removeFile(imageFileName, imageFolder, saveDir); // remove images from Filesystem if associated with marker 
-        }
+        // Even though ON DELETE CASCADE is already set up in database, only works for hard deletion, so for soft-deletion, need to manually get the images associated with the deleted marker:
+        // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
+        // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
+        await db.run('UPDATE images SET deleted_at = CURRENT_TIMESTAMP WHERE marker_id = ?', [markerId]);
+        await db.run('UPDATE markers SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [markerId]);
 
         setClickLocations(prev => prev.filter(loc => loc.id !== markerId)); // visually erase marker
-
         closeModal();
 
     }
