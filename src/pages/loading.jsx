@@ -1,8 +1,8 @@
-export default function LoadingScreen() {
+export default function Loading() {
 
     return(
         <div className="loading-container">
-            <p>Loading!</p>
+            <p>Loading...</p>
         </div>
     );
 

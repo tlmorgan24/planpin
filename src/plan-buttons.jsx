@@ -1,5 +1,5 @@
 import { useContext, useState, useEffect } from "react";
-import { PlanContext } from "./pages/plan"; // to access context variables
+import { PlanContext } from "./pages/Plan"; // to access context variables
 import { useNavigate } from "react-router-dom";
 
 

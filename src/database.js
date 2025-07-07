@@ -1,7 +1,6 @@
 import { JeepSqlite } from 'jeep-sqlite/dist/components/jeep-sqlite';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
-import { removeFile } from './pdf-setup';
 
 export async function initDb() {
 
@@ -49,6 +48,8 @@ async function createUsersTable(db) {
             id TEXT PRIMARY KEY,
             email TEXT,
             password TEXT,
+            company TEXT,
+            country TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             synced_at TIMESTAMP,

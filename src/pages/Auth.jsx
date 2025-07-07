@@ -2,7 +2,7 @@ import { useContext } from "react";
 import { DbContext, UserContext } from "../main";
 import { AppContext } from "../App";
 
-export default function LoginScreen() {
+export default function Auth() {
 
     const {db} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
     const {setUserId} = useContext(UserContext);

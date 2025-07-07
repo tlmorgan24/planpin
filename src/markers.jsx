@@ -1,5 +1,5 @@
 import { forwardRef, useContext, useState, useEffect } from "react";
-import { PlanContext } from "./pages/plan";
+import { PlanContext } from "./pages/Plan";
 import { AppContext } from "./App";
 import { DbContext } from "./main";
 import Modal from 'react-modal';

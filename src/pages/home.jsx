@@ -216,9 +216,6 @@ function PDFDeleteButton({fileName}) {
 
     async function handleClick() {
 
-        console.log("Delete button clicked!");
-        console.log("plans table before deletion code: ", await db.query('SELECT * FROM plans'));
-
         if (!db) return;
 
         const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ?', [fileName, userId]);
@@ -241,8 +238,6 @@ function PDFDeleteButton({fileName}) {
         await db.run('UPDATE plans SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [planId]);
         
         // Note we are not deleting the files from local storage here, as that will happen during clean up 30 days later (see database.jsx)
-
-        console.log("plans table after deletion code: ", await db.query('SELECT * FROM plans'));
 
         await refreshPdfObjects();
 

@@ -1,5 +1,5 @@
 import { useEffect, useContext, useState, forwardRef } from "react";
-import { PlanContext } from "./pages/plan";
+import { PlanContext } from "./pages/Plan";
 import { mapEventToCanvas, mapCanvasToPDF } from "./markers";
 import { useWheel, useCtrlWheel, useTouchDrag, useTouchPinch } from "./custom-listeners";
 

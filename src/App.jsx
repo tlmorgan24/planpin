@@ -1,11 +1,11 @@
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext } from 'react';
 import { Directory } from '@capacitor/filesystem';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { UserContext, DbContext } from './main';
-import Home from './pages/home';
-import Plan from './pages/plan';
-import LoginScreen from './pages/login';
-import LoadingScreen from './pages/loading';
+import Home from './pages/Home';
+import Plan from './pages/Plan';
+import Auth from './pages/Auth';
+import Loading from './pages/Loading';
 
 // -- CONTEXT VARIABLES --
 
@@ -25,7 +25,7 @@ function AppProvider({children}) {
     (because userId is set to "guest").
     */
 
-    // Values will be set on login within login.jsx (login.jsx is single source of truth for userId, pdfFolder and imageFolder).
+    // Values will be set on login within Auth.jsx (Auth.jsx is single source of truth for userId, pdfFolder and imageFolder).
   	
 	return (
     	<AppContext.Provider value={{
@@ -46,16 +46,16 @@ export default function App() {
     const {db} = useContext(DbContext);
     const {userId} = useContext(UserContext);
 
-    if (!db) return <LoadingScreen />;
-    if (userId === undefined) { // user has neither signed in, nor chosen to continue as guest yet. Must take them to LoginScreen.
+    if (!db) return <Loading />;
+    if (userId === undefined) { // user has neither signed in, nor chosen to continue as guest yet. Must take them to login screen.
         return(
             <AppProvider>
-                <LoginScreen /> {/* still wrap in AppProvider, as LoginScreen requires AppContext to set pdfFolder etc. based off obtained userId */}
+                <Auth /> {/* still wrap in AppProvider, as Auth screen requires AppContext to set pdfFolder etc. based off obtained userId */}
             </AppProvider>
         );
     } 
     /* 
-    Within LoginScreen component, I will update state of userId (using setUserId) once user logs in.
+    Within Auth component, I will update state of userId (using setUserId) once user logs in.
     If user chooses to continue as guest, will set userId to "guest". I will also add record of user to "users" 
     table of database, if doesn't already exist. Finally, I will clean up old deleted files (which have been marked 
     as deleted for more than 30 days AND SYNCED WITH CLOUD DATABASE OR WHERE USER IS GUEST, so can be fully hard deleted).
