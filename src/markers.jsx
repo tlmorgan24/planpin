@@ -209,7 +209,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             // Edit existing entry in markers table of database:
             await db.run(`
                 UPDATE markers 
-                SET reference = ?, category = ?, description = ?, severity = ?, extent = ? 
+                SET reference = ?, category = ?, description = ?, severity = ?, extent = ?,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 `,
                 [reference, category, description, severity, extent, clickedId]
@@ -322,7 +323,12 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
     async function handleClick() {
 
         const imageId = imageIds[index];
-        await db.run('UPDATE images SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [imageId]);
+        await db.run(`
+            UPDATE images 
+            SET deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [imageId]);
     
         // Remove image from relevant states (triggering re-render of images):
         setImageIds(prev => prev.filter((_, i) => i !== index)); // sets imageIds to new array with same items as previous array, except without item at specified index
@@ -371,8 +377,19 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
         // Even though ON DELETE CASCADE is already set up in database, only works for hard deletion, so for soft-deletion, need to manually get the images associated with the deleted marker:
         // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
         // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
-        await db.run('UPDATE images SET deleted_at = CURRENT_TIMESTAMP WHERE marker_id = ?', [markerId]);
-        await db.run('UPDATE markers SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [markerId]);
+        await db.run(`
+            UPDATE images 
+            SET deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE marker_id = ?
+        `, [markerId]);
+        
+        await db.run(`
+            UPDATE markers 
+            SET deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`
+        , [markerId]);
 
         setClickLocations(prev => prev.filter(loc => loc.id !== markerId)); // visually erase marker
         closeModal();

@@ -35,10 +35,20 @@ export async function initDb() {
     await createPlansTable(db);
     await createMarkersTable(db);
     await createImagesTable(db);
+    await createMetaTable(db);
 
     return db
 
 }
+
+/*
+NOTE: we will not add triggers to auto-set updated_at whenever table is updated locally, because that would mean,
+when pulling data from cloud, the inserted cloud record gets given a misleadingly recent updated_at (which could
+mean the record is considered new enough for sync to cloud again, causing infinite back-and-forth syncing).
+
+But, we will at least set the default for updated_at to CURRENT_TIMESTAMP for new records, so only have to worry about 
+setting updated_at when MODIFYING records rather than CREATING them.
+*/
 
 async function createUsersTable(db) { 
 
@@ -60,6 +70,9 @@ async function createUsersTable(db) {
     if (result.changes && result.changes.changes && result.changes.changes < 0) {
         throw new Error('Error: execute failed');
     }
+
+    // Example for setting a trigger (have since removed triggers from local database as per above)
+    /*
 
     // Add trigger to update "updated_at" field automatically when record is updated:
     // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
@@ -83,6 +96,8 @@ async function createUsersTable(db) {
         
     }
 
+    */
+
 }
 
 async function createPlansTable(db) {
@@ -103,28 +118,6 @@ async function createPlansTable(db) {
     const result = await db.execute(tableCreationStatement);
     if (result.changes && result.changes.changes && result.changes.changes < 0) {
         throw new Error('Error: execute failed');
-    }
-
-    // Add trigger to update "updated_at" field automatically when record is updated:
-    // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
-
-    const queryResult = await db.query(`
-        SELECT name FROM sqlite_master
-        WHERE type = 'trigger' AND name = 'plans_trigger'
-    `);
-
-    if (queryResult.values.length === 0) { // trigger does not yet exist
-
-        const triggerCreationStatement = `
-            CREATE TRIGGER plans_trigger
-            AFTER UPDATE ON plans
-            FOR EACH ROW
-            BEGIN
-                UPDATE plans SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-            END; 
-        `
-        await db.execute(triggerCreationStatement);
-        
     }
 
 }
@@ -156,28 +149,6 @@ async function createMarkersTable(db) {
         throw new Error('Error: execute failed');
     }
 
-    // Add trigger to update "updated_at" field automatically when record is updated:
-    // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
-
-    const queryResult = await db.query(`
-        SELECT name FROM sqlite_master
-        WHERE type = 'trigger' AND name = 'markers_trigger'
-    `);
-
-    if (queryResult.values.length === 0) { // trigger does not yet exist
-
-        const triggerCreationStatement = `
-            CREATE TRIGGER markers_trigger
-            AFTER UPDATE ON markers
-            FOR EACH ROW
-            BEGIN
-                UPDATE markers SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-            END; 
-        `
-        await db.execute(triggerCreationStatement);
-        
-    }
-
 }
 
 async function createImagesTable(db) {
@@ -201,28 +172,6 @@ async function createImagesTable(db) {
         throw new Error('Error: execute failed');
     }
 
-    // Add trigger to update "updated_at" field automatically when record is updated:
-    // "IF NOT EXISTS" not valid syntax for triggers, so have to first check for trigger:
-
-    const queryResult = await db.query(`
-        SELECT name FROM sqlite_master
-        WHERE type = 'trigger' AND name = 'images_trigger'
-    `);
-
-    if (queryResult.values.length === 0) { // trigger does not yet exist
-
-        const triggerCreationStatement = `
-            CREATE TRIGGER images_trigger
-            AFTER UPDATE ON images
-            FOR EACH ROW
-            BEGIN
-                UPDATE images SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-            END; 
-        `
-        await db.execute(triggerCreationStatement);
-        
-    }
-
 }
 
 /* 
@@ -244,3 +193,25 @@ We will also (remains to be seen exactly how) clean up the cloud storage in a si
 NOTE: the database only stores pdf_filename and image_filename (not full file path), as these are relative to user's pdf and image folder locations 
 (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
 */
+
+async function createMetaTable(db) {
+
+    // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
+    // This table will have one record for each combination of table_name and user_id (hence, composite primary key).
+    // It will be used for tracking the last time the local device pulled up-to-date data from the cloud.
+    // This table (unlike all the others) does NOT have to exist in the cloud database.
+    const tableCreationStatement = `
+        CREATE TABLE IF NOT EXISTS meta (
+            table_name TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            last_synced_from_cloud TIMESTAMP,
+            PRIMARY KEY (table_name, user_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+    `;
+    const result = await db.execute(tableCreationStatement);
+    if (result.changes && result.changes.changes && result.changes.changes < 0) {
+        throw new Error('Error: execute failed');
+    }
+
+}

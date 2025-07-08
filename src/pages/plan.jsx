@@ -25,7 +25,7 @@ function PlanProvider({children}) {
     const [pageNum, setPageNum] = useState(1); // page number (initialised to 1)
 
     // Rather than having individual states for zoom, scrollX and scrollY, we will put them together in a single object, as they are dependent on each other (e.g. when we adjust zoom, we want to also adjust scrollX and scrollY accordingly in one go using the same batch of current values)
-    // This will enable us to better use functional updates and ensure up-to-date values throughout.= useState(0); // downwards scroll in true-size PDF pt, where 0 means top-aligned (initialised to 0)
+    // This will enable us to better use functional updates and ensure up-to-date values throughout.
     const [interactionState, setInteractionState] = useState({zoom: 1, scrollX: 0, scrollY: 0});
     // zoom = zoom factor, where 1 means at least one dimension of the PDF is shown entirely on canvas (initialised to 1)
     // scrollX = rightwards scroll in true-size PDF pt, where 0 means left-aligned (initialised to 0)

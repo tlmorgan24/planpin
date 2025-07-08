@@ -231,11 +231,27 @@ function PDFDeleteButton({fileName}) {
             // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
             // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
             // Likewise, deletion from markers table must come before deletion from plans table.
-            await db.run(`UPDATE images SET deleted_at = CURRENT_TIMESTAMP WHERE marker_id IN (${markerIdPlaceholders}) AND deleted_at IS NULL`, markerIds) // the "AND deleted_at IS NULL" means we don't reset the deleted_at of already-deleted records (which would artificially extend their lifetime and potentially cause bugs)
-            await db.run('UPDATE markers SET deleted_at = CURRENT_TIMESTAMP WHERE plan_id = ?', [planId]);
+            await db.run(`
+                UPDATE images 
+                SET deleted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP 
+                WHERE marker_id IN (${markerIdPlaceholders}) 
+                AND deleted_at IS NULL
+            `, markerIds) // the "AND deleted_at IS NULL" means we don't reset the deleted_at of already-deleted records (which would artificially extend their lifetime and potentially cause bugs)
+            await db.run(`
+                UPDATE markers 
+                SET deleted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE plan_id = ?
+            `, [planId]);
         }
 
-        await db.run('UPDATE plans SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [planId]);
+        await db.run(`
+            UPDATE plans 
+            SET deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [planId]);
         
         // Note we are not deleting the files from local storage here, as that will happen during clean up 30 days later (see database.jsx)
 
