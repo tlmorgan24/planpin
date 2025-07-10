@@ -1,127 +1,178 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { DbContext, UserContext } from "../main";
 import { AppContext } from "../App";
+import Modal from "react-modal";
 
 export default function Auth() {
 
-    const {db} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
+    const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
     const {setUserId} = useContext(UserContext);
-    const {saveDir, setPdfFolder, setImageFolder} = useContext(AppContext);
+    const {setPdfFolder, setImageFolder} = useContext(AppContext);
 
-    async function setUpUser() {
-    
-        const id = 'guest'; // placeholder - should be 'guest' if user chooses to continue as guest, else the ID from login authentication 
-        const email = null; // placeholder - should only be null if guest
-        const password = null;  // placeholder - should only be null if guest
+    const [modalIsOpen, setModalIsOpen] = useState(false);
+    const [authType, setAuthType] = useState(null);
 
-        // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it:
-        await db.run(`
-            INSERT INTO users (id, email, password)
-            VALUES (?, ?, ?)
-            ON CONFLICT(id) DO NOTHING
-        `, [id, email, password]);
-        
-        /*
-        We don't have to depend too much on context here. userId (from UserContext) is only ever set in this component,
-        so instead of getting "userId" from context to use in below functions, we can just use the id we obtained here directly.
-        Likewise, pdfFolder and imageFolder (from AppContext) depend only on saveDir (which, as per App.jsx, is initialised as a
-        constant and never null/undefined) and userId (whose up-to-date value we just obtained here directly). So, we can 
-        set the folder names here directly from this information.
-        This prevents unnecessary useEffects (hence re-renders) within this component and AppProvider.
-        I.e., this function is the "single source of truth" for UserContext and AppContext and the only piece of code that
-        sets the values (apart from saveDir, which is a constant defined in AppProvider).
-        */
+    async function signUp() {
+        setAuthType('sign-up');
+        setModalIsOpen(true);
+    }
 
-        const pdfFolder = `${id}/pdf`;
-        const imageFolder = `${id}/img`;
+    async function logIn() {
+        setAuthType('log-in');
+        setModalIsOpen(true);
+    }
 
-        setUserId(id);
-        setPdfFolder(pdfFolder);
-        setImageFolder(imageFolder);
-
-        // Clean up old records (MAY HAVE TO change the functions slightly to check all synced properly before clean up):
-        // As explained above, we are confident all of these parameters are properly defined:
-        await cleanUpLocalFiles(db, id, pdfFolder, imageFolder, saveDir);
-        await cleanUpLocalDb(db, id);
-
+    async function continueAsGuest() {
+        setUpUser({userId:'guest', email:null, password:null}, setUserId, setPdfFolder, setImageFolder, db, supabase);
     }
 
     return(
-        <div className="login-container">
-            <button onClick={setUpUser} style={{position: 'fixed', top: '100px'}}>Placeholder (continue as guest)</button>
+        <div className="auth-container">
+            <button onClick={signUp} style={{position: 'relative', top: '100px'}}>Sign up</button>
+            <button onClick={logIn} style={{position: 'relative', top: '100px'}}>Log in</button>
+            <button onClick={continueAsGuest} style={{position: 'relative', top: '100px'}}>Continue as guest</button>
+            <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
     );
 
 }
 
-export async function cleanUpLocalFiles(db, userId, pdfFolder, imageFolder, saveDir) {
 
-    // WILL NEED TO IMPROVE THE CONDITIONS TO MAKE SURE RECORD IS SYNCED WITH CLOUD (OR USER IS GUEST):
+function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 
-    // To ensure we only impact files associated with relevant user ID, need to do some joins, 
-    // as images table only links to user_id through a foreign key chain through markers and plans tables (no direct user_id column):
-    const imagesResult = await db.query(`
-        SELECT i.image_filename
-        FROM images i
-        JOIN markers m ON i.marker_id = m.id
-        JOIN plans p ON m.plan_id = p.id
-        WHERE p.user_id = ?
-        AND i.deleted_at IS NOT NULL
-        AND i.deleted_at < datetime('now', '-30 days')
-    `, [userId]);
-    const imageFileNames = imagesResult.values.map(row => row['image_filename']);
-    for (const imageFileName of imageFileNames) {
-        await removeFile(imageFileName, imageFolder, saveDir);
+    const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
+    const {setUserId} = useContext(UserContext);
+    const {setPdfFolder, setImageFolder} = useContext(AppContext);
+
+    // Form values:
+    const [formValues, setFormValues] = useState({email: null, password: null});
+
+    // Message to give error feedback to user (e.g. weak password):
+    const [message, setMessage] = useState(null);
+    
+    // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
+    function closeModal() {
+        setFormValues({email: null, password: null});
+        setModalIsOpen(false);
     }
 
-    const plansResult = await db.query(`
-        SELECT pdf_filename 
-        FROM plans 
-        WHERE user_id = ? 
-        AND deleted_at IS NOT NULL 
-        AND deleted_at < datetime('now', '-30 days')
-    `, [userId]);
-    const pdfFileNames = plansResult.values.map(row => row['pdf_filename']);
-    for (const pdfFileName of pdfFileNames) {
-        await removeFile(pdfFileName, pdfFolder, saveDir);
+    // When user presses submit, carry out authentication and close form:
+    async function handleSubmit(e) {
+        
+        e.preventDefault();
+
+        console.log("Submitting form with values: ", formValues);
+
+        let data = null;
+        let error = null;
+
+        if (authType === "sign-up") {
+            console.log("Running sign up");
+            ({data, error} = await supabase.auth.signUp(formValues));
+            console.log("Data from sign up: ", data);
+        }
+        else if (authType === "log-in") {
+            console.log("Running log in");
+            ({data, error} = await supabase.auth.signInWithPassword(formValues));
+            console.log("Data from log in: ", data);
+        }
+        else {
+            console.log("Invalid authentication type");
+            throw new Error("Invalid authentication type")
+        }
+        if (error) {
+            console.log("Error: ", error);
+            // Sign-up related errors:
+            if (error.code === 'weak_password') {
+                setMessage("Weak password. Please choose a stronger password.");
+            }
+            else if (error.code === 'email_address_invalid') {
+                setMessage("Invalid email address. Please try again.");
+            }
+            else if (error.code === 'user_already_exists') {
+                setMessage("User already exists. Please log in instead of signing up.");
+            }
+            // Login-related errors:
+            else if (error.code === 'invalid_credentials') {
+                setMessage("Invalid credentials. Please try again.");
+            }
+            else if (error.code === 'email_not_confirmed') {
+                setMessage("Email not confirmed. Please try again."); // I have currently disabled requirement for email verification, so this will never actually happen
+            }
+            else {
+                throw error;
+            }
+        }
+
+        /*
+        Note the user set-up (including the inserting into database part) is being run no matter whether signing up 
+        or loggin in, as the user may be logging in from a new device or lost their data etc, so there is no 
+        guarantee a signed-up user already exists in the local database
+        */
+
+        setUpUser({userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, db, supabase)
+
+        closeModal();
+
+        console.log("Finished");
+
     }
+
+    function handleFormChange(event) {
+        const { name, value } = event.target;
+        setFormValues((prevState) => ({ ...prevState, [name]: value }));
+    };
+
+    return(
+        <Modal className="modal" isOpen={modalIsOpen} onRequestClose={closeModal}>
+            
+            <form onSubmit={handleSubmit}>
+
+                {/* Email: */}
+                <div className="form-item">
+                    <label htmlFor="email">Email</label>
+                    <input id="email" name="email" type="email" value={formValues.email} onChange={handleFormChange} />
+                </div>
+
+                {/* Password: */}
+                <div className="form-item">
+                    <label htmlFor="password">Password</label>
+                    <input id="password" name="password" type="password" value={formValues.password} onChange={handleFormChange} />
+                </div>
+
+                <button type="submit">Submit</button>
+                <button type="button" onClick={closeModal}>Cancel</button>
+
+            </form>
+            <p>{message}</p>
+
+        </Modal>
+    );
 
 }
 
-export async function cleanUpLocalDb(db, userId) {
+/*
+NB: This function is the "single source of truth" for UserContext and AppContext. It is the only piece of code that
+sets the values (apart from saveDir, which is a constant defined in AppProvider):
+*/
+async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db) {
 
-    // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
+    console.log("Setting up");
 
-    // To ensure we only impact records associated with relevant user ID, need to do some joins, 
-    // as images table only links to user_id through a foreign key chain through markers and plans tables (no direct user_id column):
+    const { userId, email, password } = object;
+
+    // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it:
     await db.run(`
-        DELETE FROM images
-        WHERE marker_id IN (
-            SELECT m.id
-            FROM markers m
-            JOIN plans p ON m.plan_id = p.id
-            WHERE p.user_id = ?
-        )
-        AND deleted_at IS NOT NULL
-        AND deleted_at < datetime('now', '-30 days')
-    `, [userId]);
+        INSERT INTO users (id, email, password, created_at, updated_at)
+        VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ON CONFLICT(id) DO NOTHING
+    `, [userId, email, password]);
 
-    await db.run(`
-        DELETE FROM markers
-        WHERE plan_id IN (
-            SELECT id
-            FROM plans
-            WHERE user_id = ?
-        )
-        AND deleted_at IS NOT NULL 
-        AND deleted_at < datetime('now', '-30 days')
-    `, [userId]);
+    const pdfFolder = `${userId}/pdf`;
+    const imageFolder = `${userId}/img`;
 
-    await db.run(`
-        DELETE FROM plans
-        WHERE user_id = ?
-        AND deleted_at IS NOT NULL 
-        AND deleted_at < datetime('now', '-30 days')
-    `, [userId]);
+    setUserId(userId);
+    setPdfFolder(pdfFolder);
+    setImageFolder(imageFolder);
 
 }

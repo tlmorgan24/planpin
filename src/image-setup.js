@@ -1,6 +1,6 @@
 import { Filesystem } from '@capacitor/filesystem';
 import { Camera, CameraResultType } from '@capacitor/camera';
-import { ensureFolderExists, convertToBase64 } from './pdf-setup';
+import { saveFile } from './pdf-setup';
 
 export async function captureImage() {
     
@@ -22,23 +22,15 @@ export async function captureImage() {
 
 export async function saveImage(image, folder, saveDir) { // image is as saved from Camera.getPhoto with resultType: CameraResultType.Uri.
 
-    await ensureFolderExists(folder, saveDir);
+    const extension = image.format == 'jpeg' ? 'jpg' : image.format; // use 'jpg' extension for jpeg format, otherwise use the format as is (e.g. png)
+    const desiredName = crypto.randomUUID() + '.' + extension; // unique filename, e.g. '7741B70A-570B-4253-841C-96FC3CF19AC3.jpg';
     
-    // convert image to base64 data:
     const response = await fetch(image.webPath);
     const blob = await response.blob();
-    const base64Data = await convertToBase64(blob); // same function as used in pdf-setup.jsx
-    
-    // save:
-    const extension = image.format == 'jpeg' ? 'jpg' : image.format; // use 'jpg' for jpeg format, otherwise use the format as is (e.g. png)
-    const fileName = crypto.randomUUID() + '.' + extension; // unique filename, e.g. '7741B70A-570B-4253-841C-96FC3CF19AC3.jpg';
-    await Filesystem.writeFile({
-        path: `${folder}/${fileName}`,
-        data: base64Data, // base64 data of the image (writeFile expects base64 data by default)
-        directory: saveDir,
-    });
 
-    return fileName;
+    const newName = await saveFile(blob, folder, saveDir, desiredName) // as used for PDFs in pdf-setup.jsx
+
+    return newName;
 
 }
 

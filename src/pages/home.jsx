@@ -4,6 +4,7 @@ import { PageCanvas } from "../pdf-render";
 import { getPdfObjects, saveFile } from '../pdf-setup';
 import { AppContext } from '../App';
 import { DbContext, UserContext } from "../main";
+import { SyncButton } from "../sync";
 
 
 // -- CONTEXT VARIABLES --
@@ -18,7 +19,7 @@ function HomeProvider({children}) {
 
     const {userId} = useContext(UserContext);
     const {db} = useContext(DbContext);
-    const {pdfFolder, saveDir} = useContext(AppContext);
+    const {pdfFolder, saveDir, lastSyncedPlansFromCloud} = useContext(AppContext);
     const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
     
     async function refreshPdfObjects() {
@@ -31,10 +32,10 @@ function HomeProvider({children}) {
 
     };
 
-    // Ensure children, which track pdfObjects, re-run with refreshed pdfObjects on mount and on change of pdfFolder/saveDir:
+    // Ensure children, which track pdfObjects, re-run with refreshed pdfObjects on mount and on change of pdfFolder/saveDir and after every sync:
     useEffect(() => {
         refreshPdfObjects();
-    }, [pdfFolder, saveDir]);
+    }, [pdfFolder, saveDir, lastSyncedPlansFromCloud]);
 
     return (
         <HomeContext.Provider value={{
@@ -53,6 +54,7 @@ export default function Home() {
     return(
         <HomeProvider>
             <div className="home-container">
+                <SyncButton />
                 <h1>My Plans</h1>
                 <RefreshPlansButton/>
                 <Plans/>
@@ -91,9 +93,10 @@ function PDFInput() {
             const fileName = await saveFile(file, pdfFolder, saveDir);
             
             const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
+            // Add PDF record:
             await db.run(`
-                INSERT INTO plans (id, user_id, pdf_filename) 
-                VALUES (?, ?, ?)
+                INSERT INTO plans (id, user_id, pdf_filename, created_at, updated_at) 
+                VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
                 `,
                 [id, userId, fileName]
             );
@@ -233,23 +236,23 @@ function PDFDeleteButton({fileName}) {
             // Likewise, deletion from markers table must come before deletion from plans table.
             await db.run(`
                 UPDATE images 
-                SET deleted_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP 
+                SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') 
                 WHERE marker_id IN (${markerIdPlaceholders}) 
                 AND deleted_at IS NULL
             `, markerIds) // the "AND deleted_at IS NULL" means we don't reset the deleted_at of already-deleted records (which would artificially extend their lifetime and potentially cause bugs)
             await db.run(`
                 UPDATE markers 
-                SET deleted_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
+                SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE plan_id = ?
             `, [planId]);
         }
 
         await db.run(`
             UPDATE plans 
-            SET deleted_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
+            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
         `, [planId]);
         

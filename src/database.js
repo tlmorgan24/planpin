@@ -42,12 +42,18 @@ export async function initDb() {
 }
 
 /*
-NOTE: we will not add triggers to auto-set updated_at whenever table is updated locally, because that would mean,
+NOTE: we will not add triggers to auto-set updated_at whenever table is updated, because that would mean,
 when pulling data from cloud, the inserted cloud record gets given a misleadingly recent updated_at (which could
 mean the record is considered new enough for sync to cloud again, causing infinite back-and-forth syncing).
 
-But, we will at least set the default for updated_at to CURRENT_TIMESTAMP for new records, so only have to worry about 
-setting updated_at when MODIFYING records rather than CREATING them.
+But, we will at least set the default for updated_at to current date & time for new records, so only have to worry about 
+setting updated_at when MODIFYING records rather than CREATING them. Instead of CURRENT_TIMESTAMP, we want to set it to
+STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), which is in ISO 8601 format (for consistency with cloud database). Then we won't 
+have to worry about time zones (always UTC) or comparison (as always comparing same format).
+
+BUT, setting SQL function calls like this as a default value is not supported in SQLite. Can only set it manually
+in insert or update. So, we will make sure to set created_at and updated_at to this in EVERY INSERT statement 
+(and updated_at in every update statement, which we would need to do anyway even if the defaults did work).
 */
 
 async function createUsersTable(db) { 
@@ -60,8 +66,8 @@ async function createUsersTable(db) {
             password TEXT,
             company TEXT,
             country TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL,
             synced_at TIMESTAMP,
             deleted_at TIMESTAMP
         );
@@ -89,7 +95,7 @@ async function createUsersTable(db) {
             AFTER UPDATE ON users
             FOR EACH ROW
             BEGIN
-                UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+                UPDATE users SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = OLD.id;
             END; 
         `
         await db.execute(triggerCreationStatement);
@@ -108,8 +114,8 @@ async function createPlansTable(db) {
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
             pdf_filename TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL,
             synced_at TIMESTAMP,
             deleted_at TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -137,8 +143,8 @@ async function createMarkersTable(db) {
             description TEXT,
             severity INTEGER,
             extent INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL,
             synced_at TIMESTAMP,
             deleted_at TIMESTAMP,
             FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
@@ -160,8 +166,8 @@ async function createImagesTable(db) {
             id TEXT PRIMARY KEY,
             marker_id TEXT NOT NULL,
             image_filename TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL,
             synced_at TIMESTAMP,
             deleted_at TIMESTAMP,
             FOREIGN KEY (marker_id) REFERENCES markers(id) ON DELETE CASCADE

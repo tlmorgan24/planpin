@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 import { initDb } from './database.js';
+import { initSupabase } from './supabase.js';
 
 
 // -- USER AUTHENTICATION CONTEXT --
@@ -34,19 +35,23 @@ export const DbContext = createContext();
 // Define context provider:
 function DbProvider({children}) {
 
-    const [db, setDb] = useState(null); // database
+    const [db, setDb] = useState(null); // local SQLite database
+    const [supabase, setSupabase] = useState(null); // cloud Supabase database
 
     useEffect(() => {
         async function func() {
             const database = await initDb();
+            const supabase = await initSupabase();
             setDb(database);
+            setSupabase(supabase);
         }
         func();
     }, []); // no deps: run only once on start up
     
     return (
         <DbContext.Provider value={{
-            db
+            db,
+            supabase,
         }}>
         {children}
         </DbContext.Provider>

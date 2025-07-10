@@ -117,9 +117,9 @@ markerLayer fill entirety of pageCanvas.
 }
 
 
-/* Login screen */
+/* Authentication screen */
 
-.login-container {
+.auth-container {
   position: relative; /* set to relative to allow it to be a containing block for children */
   width: var(--usable-width);
   height: var(--usable-height);

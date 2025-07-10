@@ -11,9 +11,9 @@ import 'pdfjs-dist/build/pdf.worker';
 
 // ---- GET PDF OBJECTS ----
 
-// Return all PDFs in folder of saveDir as object, with file names as keys and pdf.js pdf objects as values:
+// Return all PDF filenames in folder of saveDir as array:
 // fileNamesFilter, if defined, means only the PDFs in the folder that match a name in fileNamesFilter are returned
-export async function getPdfObjects(folder, saveDir, fileNamesFilter=undefined) {
+export async function getFilenames(folder, saveDir, fileNamesFilter=undefined, extension=undefined) {
 
     // Get the list of files in the Documents directory:
     ensureFolderExists(folder, saveDir); // create folder if doesn't yet exist (created folder will be empty, so function we are in will ultimately just return an empty object without throwing error)
@@ -27,10 +27,20 @@ export async function getPdfObjects(folder, saveDir, fileNamesFilter=undefined) 
     let fileNames = [];
     for (const readdirObject of result.files) { // each of these is a readdir file object with its own properties such as name.
         const fileName = readdirObject.name;
-        if (fileName.endsWith('.pdf') && (fileNamesFilter === undefined || fileNamesFilter.includes(fileName))) { // ignore non-PDF files and any files outside the fileNamesFilter (if specified)
+        if ((extension === undefined || fileName.endsWith(extension)) && (fileNamesFilter === undefined || fileNamesFilter.includes(fileName))) { // ignore files not matching the extension or outside the fileNamesFilter (if specified)
             fileNames.push(fileName);
         } 
     }
+
+    return fileNames
+
+}
+
+// Return all PDFs in folder of saveDir as object, with file names as keys and pdf.js pdf objects as values:
+// fileNamesFilter, if defined, means only the PDFs in the folder that match a name in fileNamesFilter are returned
+export async function getPdfObjects(folder, saveDir, fileNamesFilter=undefined) {
+
+    const fileNames = await getFilenames(folder, saveDir, fileNamesFilter, '.pdf');
 
     // Get pdf.js pdf objects from file names, and add former keyed by latter to the object to be returned:
     const pdfObjects = {};
@@ -92,10 +102,16 @@ export async function loadPDF(fileData) {
 }
 
 
-// ---- SAVE PDF FILE ----
+// ---- SAVE FILE ----
 
-// Save input file (obtained from pdf submitted to HTML form) to desired folder in saveDir as base64 data:
-export async function saveFile(file, folder, saveDir) {
+// Save input file to desired folder in saveDir as base64 data:
+// Works for both file object (from submission to HTML form) and Blob object.
+// If overwrite is true, will overwrite file if it already exists; otherwise, will alter name to prevent overwriting.
+export async function saveFile(file, folder, saveDir, desiredName=undefined, overwrite=false) {
+
+    if (desiredName === undefined) {
+        desiredName = file.name; // it is assumed, if desiredName not provided, that a file object is being passes as the first argument, which has an existing name property
+    }
 
     // Create folder if doesn't yet exist:
     await ensureFolderExists(folder, saveDir);
@@ -103,19 +119,30 @@ export async function saveFile(file, folder, saveDir) {
     // Read the file as base64 (Capacitor requires base64 or UTF8 for Filesystem writeFile):
     const base64Data = await convertToBase64(file);
 
-    // Ensure name does not match name of any previously saved pdf (if so, alter name to prevent overwriting):
-    let newName = file.name
-    const baseName = newName.slice(0, -4); // without .pdf extension
-    let counter = 1;
-    while (await fileExists(newName, folder, saveDir)) {
-        newName = `${baseName}(${counter}).pdf`;
-        counter++;
-    }
-    if (newName !== file.name) {
-        console.log(`Filename ${file.name} already exists. Name changed to ${newName}.`)
+    if (overwrite) {
+        // Immediately save to Capacitor Filesystem (will automatically overwrite if file already exists):
+        await Filesystem.writeFile({
+            path: `${folder}/${desiredName}`,
+            data: base64Data,
+            directory: saveDir,
+        });
+        return desiredName;
     }
 
-    // Save to Capacitor Filesystem:
+    // Ensure name does not match name of any previously saved file (if so, alter name to prevent overwriting):
+    let newName = desiredName
+    const extension = newName.includes('.') ? newName.slice(newName.lastIndexOf('.')) : '';
+    const baseName = newName.slice(0, newName.lastIndexOf('.'));
+    let counter = 1;
+    while (await fileExists(newName, folder, saveDir)) {
+        newName = `${baseName}(${counter})${extension}`;
+        counter++;
+    }
+    if (newName !== desiredName) {
+        console.log(`Filename ${desiredName} already exists. Name changed to ${newName}.`)
+    }
+
+    // Save to Capacitor Filesystem under non-clashing filename:
     await Filesystem.writeFile({
         path: `${folder}/${newName}`,
         data: base64Data,
@@ -127,13 +154,14 @@ export async function saveFile(file, folder, saveDir) {
 }
 
 // Convert file obtained from pdf submitted to HTML form to base64 data:
+// Works for both file object (from submission to HTML form) and Blob object.
 export async function convertToBase64(file) {
     // FileReader is async but does not return a promise (unlike async function or Promise); it works with callbacks (e.g. onload allows you to execute code on load).
     // So, need to "promisify" to return what we want from the callback:
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-            const base64 = reader.result.split(',')[1]; // remove "data:application/pdf;base64,"
+            const base64 = reader.result.split(',')[1]; // remove e.g. "data:application/pdf;base64,"
             resolve(base64);
         };
         reader.onerror = error => reject(error);
@@ -163,5 +191,38 @@ export async function removeFile(fileName, folder, saveDir) {
         path: `${folder}/${fileName}`,
         directory: saveDir,
     });
+
+}
+
+
+// ---- EXPORT FILE ----
+
+// Return data as blob, given file path (as name, folder path and directory):
+// (Note blob is data type required by supabase, hence our desire to convert)
+// mimeType input should be 'application/pdf' for PDFs and 'image/jpeg' for images
+export async function readAsBlob(fileName, folder, saveDir, mimeType) {
+    
+    const file = await Filesystem.readFile({ // base64 data by default
+        path: `${folder}/${fileName}`,
+        directory: saveDir, // read from directory where plans get saved
+    });
+    const base64Data = file.data;
+
+    const byteCharacters = atob(base64Data); // file.data is base64 string
+    const byteArrays = [];
+
+    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+        const slice = byteCharacters.slice(offset, offset + 512);
+
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+        }
+
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+    }
+
+    return new Blob(byteArrays, { type: mimeType });
 
 }

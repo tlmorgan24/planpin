@@ -210,7 +210,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             await db.run(`
                 UPDATE markers 
                 SET reference = ?, category = ?, description = ?, severity = ?, extent = ?,
-                    updated_at = CURRENT_TIMESTAMP
+                    updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ?
                 `,
                 [reference, category, description, severity, extent, clickedId]
@@ -220,8 +220,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         else {
             // Create new entry in markers table of database:
             await db.run(`
-                INSERT INTO markers (id, plan_id, page_number, x, y, reference, category, description, severity, extent) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO markers (id, plan_id, page_number, x, y, reference, category, description, severity, extent, created_at, updated_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
                 `,
                 [clickedId, planId, pageNum, x, y, reference, category, description, severity, extent]
             );
@@ -233,8 +233,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             const imageFileName = await saveImage(image, imageFolder, saveDir);
             // Submit to images table of database:
             await db.run(`
-                INSERT INTO images (id, marker_id, image_filename) 
-                VALUES (?, ?, ?)
+                INSERT INTO images (id, marker_id, image_filename, created_at, updated_at) 
+                VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
                 `,
                 [imageId, clickedId, imageFileName]
             );
@@ -325,8 +325,8 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
         const imageId = imageIds[index];
         await db.run(`
             UPDATE images 
-            SET deleted_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
+            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
         `, [imageId]);
     
@@ -379,15 +379,15 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
         // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
         await db.run(`
             UPDATE images 
-            SET deleted_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
+            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE marker_id = ?
         `, [markerId]);
-        
+
         await db.run(`
             UPDATE markers 
-            SET deleted_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
+            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?`
         , [markerId]);
 
