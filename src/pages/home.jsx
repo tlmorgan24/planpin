@@ -12,14 +12,14 @@ import { SyncButton } from "../sync";
 // MAYBE I CAN CLEAN THINGS UP SO THAT THERE IS NO NEED TO DEFINE HOME CONTEXT? Something to consider fur future
 
 // Define context object:
-const HomeContext = createContext();
+export const HomeContext = createContext();
 
 // Define context provider:
 function HomeProvider({children}) {
 
     const {userId} = useContext(UserContext);
     const {db} = useContext(DbContext);
-    const {pdfFolder, saveDir, lastSyncedPlansFromCloud} = useContext(AppContext);
+    const {pdfFolder, saveDir} = useContext(AppContext);
     const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
     
     async function refreshPdfObjects() {
@@ -32,10 +32,11 @@ function HomeProvider({children}) {
 
     };
 
-    // Ensure children, which track pdfObjects, re-run with refreshed pdfObjects on mount and on change of pdfFolder/saveDir and after every sync:
+    // Ensure children, which track pdfObjects, re-run with refreshed pdfObjects on mount and on change of pdfFolder/saveDir:
+    // NB we will also (by using refreshPdfObjects in Sync button) refresh after every sync.
     useEffect(() => {
         refreshPdfObjects();
-    }, [pdfFolder, saveDir, lastSyncedPlansFromCloud]);
+    }, [pdfFolder, saveDir]);
 
     return (
         <HomeContext.Provider value={{

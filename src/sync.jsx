@@ -1,6 +1,7 @@
 import { useContext } from "react";
 import { DbContext, UserContext } from "./main";
 import { AppContext } from "./App";
+import { HomeContext } from "./pages/Home";
 import { getFilenames, saveFile, readAsBlob, removeFile } from "./pdf-setup";
 
 /*
@@ -21,7 +22,8 @@ export function SyncButton() {
 
     const {db: sqliteDb, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
-    const {pdfFolder, imageFolder, saveDir, setLastSyncedPlansFromCloud} = useContext(AppContext);
+    const {pdfFolder, imageFolder, saveDir} = useContext(AppContext);
+    const {refreshPdfObjects} = useContext(HomeContext);
 
     async function handleClick() {
         if (!sqliteDb || !supabase || pdfFolder === undefined || imageFolder === undefined || userId === undefined) return;
@@ -38,7 +40,8 @@ export function SyncButton() {
             await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
         }
         else {
-            await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setLastSyncedPlansFromCloud);
+            await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
+            await refreshPdfObjects();
         }
     }
 
@@ -59,13 +62,13 @@ async function cloudCleanUp(supabase, sqliteDb, userId, pdfFolder, imageFolder) 
     await cleanUpCloudFiles(supabase, pdfFileNames, imageFileNames, pdfFolder, imageFolder);
 }
 
-async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setLastSyncedPlansFromCloud) {
+async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir) {
 
     console.log('Starting sync...');
     
     for (const table of ['users', 'plans', 'markers', 'images']) {
         try {
-            await pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir, setLastSyncedPlansFromCloud);
+            await pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir);
             await pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir);
         }
         catch (error) {
@@ -204,7 +207,7 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
 }
 
 // Update all records of local database where cloud database has a more recent "updated_at" or row does not exist in local database:
-async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir, setLastSyncedPlansFromCloud) {
+async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir) {
 
     if (userId === 'guest') return; // guest account data is never synced
 
@@ -401,10 +404,6 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
         ON CONFLICT(table_name, user_id) DO UPDATE SET last_synced_from_cloud = ?
         `, [table, userId, maxUpdatedAt, maxUpdatedAt]
     );
-
-    if (table === 'plans') {
-        setLastSyncedPlansFromCloud(maxUpdatedAt); // to allow PDF plans on Home page to automatically refresh
-    }
 
     console.log('Finished pulling from cloud for table: ', table);
 
