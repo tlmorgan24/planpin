@@ -1,4 +1,5 @@
 import { StrictMode, createContext, useState, useEffect } from 'react';
+import Modal from 'react-modal';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
@@ -60,7 +61,7 @@ function DbProvider({children}) {
 
 
 // -- APP --
-
+Modal.setAppElement('#root'); // so any modals in the app can properly hide non-modal part of app from screen readers when modal open
 createRoot(document.getElementById('root')).render(
     <StrictMode>
         <UserProvider>

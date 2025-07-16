@@ -24,6 +24,7 @@ def get_marker_records(supabase, plan_id):
         supabase.table('user_markers') # view of markers table filtered to authenticated user
         .select('id, reference, category, description, severity, extent')
         .eq('plan_id', plan_id) # filter to only the plan the user is generating the report for
+        .order('reference') # order alphabetically by reference (so that defects will appear in suitable order in report)
         .execute()
     )
     return response.data
@@ -33,7 +34,8 @@ def get_priority_marker_ids(supabase, plan_id, limit):
         supabase.table('user_markers') # view of markers table filtered to authenticated user
         .select('id')
         .eq('plan_id', plan_id) # filter to only the plan the user is generating the report for
-        .order('severity', desc=True)
+        .order('severity', desc=True) # first level of ordering is by severity (so later limit gets most severe defects)
+        .order('reference') # second level of ordering is by reference (so logically ordered wihtin each severity level)
         .limit(limit) # e.g. if limit=5, get top 5 defects based on severity
         .execute()
     )

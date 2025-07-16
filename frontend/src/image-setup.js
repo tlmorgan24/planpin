@@ -49,3 +49,12 @@ export async function getImageUri(fileName, folder, saveDir) {
     }
     return `data:${mimeType};base64,${base64Data}`;
 }
+
+// For supabase, createSignedUrl method is already provided, so less conversion needed:
+export async function getSupabaseImageUri(supabase, fileName, folder) {
+    const { data, error } = await supabase.storage
+        .from('user-files')
+        .createSignedUrl(`${folder}/${fileName}`, 3600); // valid for 1 hour
+    if (error) console.log('Error getting signed URL: ', error);
+    return data.signedUrl;
+}

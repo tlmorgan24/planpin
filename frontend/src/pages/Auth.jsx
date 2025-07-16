@@ -1,11 +1,13 @@
 import { useContext, useState } from "react";
+import { Capacitor } from '@capacitor/core';
 import { DbContext, UserContext } from "../main";
 import { AppContext } from "../App";
+import { fullSync } from "../sync";
 import Modal from "react-modal";
 
 export default function Auth() {
 
-    const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
+    const {db, supabase} = useContext(DbContext); // we are confident db (if mobile) or supabase (if web) exist here, as App.jsx only sends user here if they exist (otherwise sends to loading screen)
     const {setUserId} = useContext(UserContext);
     const {setPdfFolder, setImageFolder} = useContext(AppContext);
 
@@ -45,14 +47,14 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
     const {setPdfFolder, setImageFolder} = useContext(AppContext);
 
     // Form values:
-    const [formValues, setFormValues] = useState({email: null, password: null});
+    const [formValues, setFormValues] = useState({email: '', password: ''}); // initalise to empty string (not null), so React knows this is a controlled component (recommended for form inputs)
 
     // Message to give error feedback to user (e.g. weak password):
     const [message, setMessage] = useState(null);
     
     // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
     function closeModal() {
-        setFormValues({email: null, password: null});
+        setFormValues({email: '', password: ''});
         setModalIsOpen(false);
     }
 
@@ -61,20 +63,14 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
         
         e.preventDefault();
 
-        console.log("Submitting form with values: ", formValues);
-
         let data = null;
         let error = null;
 
         if (authType === "sign-up") {
-            console.log("Running sign up");
             ({data, error} = await supabase.auth.signUp(formValues));
-            console.log("Data from sign up: ", data);
         }
         else if (authType === "log-in") {
-            console.log("Running log in");
             ({data, error} = await supabase.auth.signInWithPassword(formValues));
-            console.log("Data from log in: ", data);
         }
         else {
             console.log("Invalid authentication type");
@@ -85,19 +81,24 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
             // Sign-up related errors:
             if (error.code === 'weak_password') {
                 setMessage("Weak password. Please choose a stronger password.");
+                return;
             }
             else if (error.code === 'email_address_invalid') {
                 setMessage("Invalid email address. Please try again.");
+                return;
             }
             else if (error.code === 'user_already_exists') {
                 setMessage("User already exists. Please log in instead of signing up.");
+                return;
             }
             // Login-related errors:
             else if (error.code === 'invalid_credentials') {
                 setMessage("Invalid credentials. Please try again.");
+                return;
             }
             else if (error.code === 'email_not_confirmed') {
                 setMessage("Email not confirmed. Please try again."); // I have currently disabled requirement for email verification, so this will never actually happen
+                return;
             }
             else {
                 throw error;
@@ -113,8 +114,6 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
         setUpUser({userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, db, supabase)
 
         closeModal();
-
-        console.log("Finished");
 
     }
 
@@ -155,18 +154,38 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 NB: This function is the "single source of truth" for UserContext and AppContext. It is the only piece of code that
 sets the values (apart from saveDir, which is a constant defined in AppProvider):
 */
-async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db) {
+async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db, supabase) {
 
-    console.log("Setting up");
-
+    const platform = Capacitor.getPlatform();
     const { userId, email, password } = object;
 
-    // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it:
-    await db.run(`
-        INSERT INTO users (id, email, password, created_at, updated_at)
-        VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-        ON CONFLICT(id) DO NOTHING
-    `, [userId, email, password]);
+    // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it (either way, if on mobile, sync to make sure up to date with cloud):
+    if (platform !== 'web') {
+        await db.run(`
+            INSERT INTO users (id, email, password, created_at, updated_at)
+            VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(id) DO NOTHING
+        `, [userId, email, password]);
+        fullSync(); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile - so below, we won't be creating an updated record due to lack of sync
+    }
+    else {
+        const {error} = await supabase
+            .from('users')
+            .upsert({
+                    id: userId,
+                    email,
+                    password,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+                {
+                    onConflict: 'id',
+                    ignoreDuplicates: true,
+                } // ^ equivalent to ON CONFLICT(id) DO NOTHING (i.e. will NOT update if already exists)
+            );
+        if (error) console.log("Error: ", error);
+        // note, we do not 'sync' if we are already on the web (using the cloud), as the cloud is itself the source of truth. It is up to the mobile to sync with cloud when necessary
+    }
 
     const pdfFolder = `${userId}/pdf`;
     const imageFolder = `${userId}/img`;

@@ -1,9 +1,10 @@
 import { createContext, useState, useRef, useContext, useEffect } from "react";
 import { useLocation } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { HomeButton, NextPageButton, PreviousPageButton, ResetViewButton} from "../plan-buttons";
 import { InteractivePage } from "../pdf-render";
 import { MarkerLayer } from "../markers";
-import { readPDF, loadPDF } from "../pdf-setup";
+import { readPdf, readPdfFromSupabase, loadPdf } from "../pdf-setup";
 import { AppContext } from "../App";
 import { DbContext, UserContext } from "../main";
 
@@ -42,24 +43,78 @@ function PlanProvider({children}) {
         // Additional data (e.g. imagePath, description, etc.) is unnecessary for purposes of displaying marker locations, so will only be fetched when a marker is clicked.
     const [clickLocations, setClickLocations] = useState([]); // initially empty
     
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
 
     // Get clickLocations from markers database:
     useEffect(() => {
         async function func() {
 
-            if (!db) return;
+            let planId = null;
+            let markersResultRows = [];
 
-            console.log("useEffect running...");
+            const platform = Capacitor.getPlatform();
 
-            const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ? AND deleted_at IS NULL', [pdfFileName, userId]);
-            const planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
+            if (platform !== 'web') {
+                
+                if (!db) return;
+
+                // Get plan ID from pdf_filename and user_id:
+                const plansResult = await db.query(
+                    `
+                        SELECT id 
+                        FROM plans 
+                        WHERE pdf_filename = ? 
+                            AND user_id = ? 
+                            AND deleted_at IS NULL
+                    `, 
+                    [pdfFileName, userId]
+                );
+                planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
+
+                // Get marker data for this plan:
+                const markersResult = await db.query(
+                    `
+                        SELECT id, page_number, x, y 
+                        FROM markers 
+                        WHERE plan_id = ? 
+                            AND deleted_at IS NULL
+                    `, 
+                    [planId]
+                ); 
+                markersResultRows = markersResult.values;
+
+            }
+
+            else { // on web
+
+                if (!supabase) return;
+
+                // Get plan ID from pdf_filename and user_id:
+                const { data: plansData, error: plansError } = await supabase
+                    .from('plans')
+                    .select('id')
+                    .eq('pdf_filename', pdfFileName)
+                    .eq('user_id', userId)
+                    .is('deleted_at', null)
+                    .single(); // assumes one result expected
+                if (plansError) console.log('Error fetching plan: ', plansError);
+                planId = plansData['id']
+
+                // Get marker data for this plan:
+                const { data: markersData, error: markersError } = await supabase
+                    .from('markers')
+                    .select('id, page_number, x, y')
+                    .eq('plan_id', planId)
+                    .is('deleted_at', null);
+                if (markersError) console.log("Error fetching markers: ", markersError);
+                markersResultRows = markersData;
+
+            } 
             
-            const markersResult = await db.query('SELECT id, page_number, x, y FROM markers WHERE plan_id = ? AND deleted_at IS NULL', [planId]); // only get data for this PDF
-            // markersResult.values will be an array of rows (empty if no rows)
-            if (markersResult.values.length > 0) {
-                const loadedClickLocations = markersResult.values.map(row => ({
+            // markersResultRows will be an array of rows (empty if no rows)
+            if (markersResultRows.length > 0) {
+                const loadedClickLocations = markersResultRows.map(row => ({
                     id: row.id,
                     pageNum: row.page_number,
                     x: row.x,
@@ -71,7 +126,7 @@ function PlanProvider({children}) {
 
         }
         func();
-    }, [db, pdfFileName]); // NB: changes to db do not trigger re-run; only triggers when db references different database (i.e. if db was intiially null and is now referencing the database object, it will run)
+    }, [db, supabase, pdfFileName]); // NB: changes to db do not trigger re-run; only triggers when db references different database (i.e. if db was intiially null and is now referencing the database object, it will run)
 
     return (
         <PlanContext.Provider value={{
@@ -95,16 +150,23 @@ export default function Plan() {
 
     // Get pdf file:
     const {pdfFolder, saveDir} = useContext(AppContext);
+    const {supabase} = useContext(DbContext);
     const location = useLocation();
     const params = new URLSearchParams(location.search);
     const fileName = params.get('file');
-    // readPDF and loadPDF are async functions, so have to put inside useEffect:
+    // readPdf and loadPdf are async functions, so have to put inside useEffect:
     const [pdf, setPDF] = useState(null);
     useEffect(() => {
         async function func() {
             if (pdfFolder === undefined) return;
-            const pdfData = await readPDF(fileName, pdfFolder, saveDir); // pdf data as Uint8Array
-            const pdf = await loadPDF(pdfData); // pdf is pdf.js pdf object
+            let pdfData = null; // pdfData will be data as Uint8Array
+            if (Capacitor.getPlatform() !== 'web') { // get PDF from local SQLite storage on mobile:
+                pdfData = await readPdf(fileName, pdfFolder, saveDir); // pdf data as Uint8Array
+            }
+            else { // get PDF from Supabase cloud storage:
+                pdfData = await readPdfFromSupabase(supabase, fileName, pdfFolder);
+            }
+            const pdf = await loadPdf(pdfData); // pdf is pdf.js pdf object
             setPDF(pdf);
         }
         func();

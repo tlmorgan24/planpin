@@ -1,9 +1,10 @@
 import { forwardRef, useContext, useState, useEffect } from "react";
+import { Capacitor } from '@capacitor/core';
 import { PlanContext } from "./pages/Plan";
 import { AppContext } from "./App";
 import { DbContext } from "./main";
 import Modal from 'react-modal';
-import { captureImage, saveImage, getImageUri } from "./image-setup";
+import { captureImage, saveImage, getImageUri, getSupabaseImageUri } from "./image-setup";
 
 // ---- MARKER COMPONENT ----
 
@@ -51,7 +52,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
     // Hence, checks for these are incorporated in this component's effects & event handlers.
     const pageNum = page.pageNumber;
     const {clickLocations, setClickLocations, planId} = useContext(PlanContext);
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
 
     const [markerLocations, setMarkerLocations] = useState([]); // will be array of id, canvasX, and canvasY. id same as in database, canvas coordinates in CSS px.
     const [clickedId, setClickedId] = useState(null); // to track which marker was just clicked or added (will be null on first render, even if there are markers already stored in database)
@@ -80,7 +81,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
                 <Marker key={id} id={id} canvasX={canvasX} canvasY={canvasY} setClickedId={setClickedId} />
             ))}
             {/* Form modal to pop up when user wants to add a marker: */}
-            <FormModal clickedId={clickedId} setClickedId={setClickedId} clickLocations={clickLocations} setClickLocations={setClickLocations} planId={planId} db={db} />
+            <FormModal clickedId={clickedId} setClickedId={setClickedId} clickLocations={clickLocations} setClickLocations={setClickLocations} planId={planId} db={db} supabase={supabase} />
         </div>
     );
 
@@ -91,7 +92,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
 
 // When user adds a marker (see addMarker function) or clicks on existing marker, this modal form will pop up to allow them to input additional details about the defect:
 
-function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations, planId, db }) {
+function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations, planId, db, supabase }) {
 
     /* 
     NOTE: the database only stores pdf_filename and image_filename (not full file path), as these are relative to user's pdf and image folder locations 
@@ -106,7 +107,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
-    const [formValues, setFormValues] = useState({reference: null, category: null, description: null, severity: null, extent: null});
+    const [formValues, setFormValues] = useState({reference: '', category: '', description: '', severity: '', extent: ''});
 
     const [isOpen, setIsOpen] = useState(false);
 
@@ -125,38 +126,99 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             setIsOpen(true);
 
+            const platform = Capacitor.getPlatform();
+
             // Get current data to set form values to (if marker already exists in database):
-            const markersResult = await db.query('SELECT reference, category, description, severity, extent FROM markers WHERE id = ? AND deleted_at IS NULL', [clickedId]);
-            const row = markersResult.values[0]; // query should return one row (if marker exists) or zero rows (if no marker exists). If latter, row will return undefined
-            if (!row) return; // new marker; no database data yet; will not update default form inputs or attempt to get images below
+
+            let row = null;
+
+            if (platform !== 'web') { // on mobile
+                const markersResult = await db.query(
+                    `
+                        SELECT reference, category, description, severity, extent 
+                        FROM markers 
+                        WHERE id = ? 
+                            AND deleted_at IS NULL
+                    `, 
+                    [clickedId]
+                );
+                if (markersResult.values.length !== 1) { // new marker; no database data yet; will not update default form inputs or attempt to get images below
+                    setMarkerInDb(false);
+                    return;
+                }
+                row = markersResult.values[0]; // query should return one row (if marker exists) or zero rows (if no marker exists). If latter, row will return undefined
+            }
+
+            else { // on web
+                const { data, error } = await supabase
+                    .from('markers')
+                    .select('reference, category, description, severity, extent')
+                    .eq('id', clickedId)
+                    .is('deleted_at', null);
+                if (error) console.log('Error: ', error);
+                if (data.length !== 1) { // new marker; no database data yet; will not update default form inputs or attempt to get images below
+                    setMarkerInDb(false);
+                    return;
+                }
+                row = data[0];
+            }
+
+            // Here, we make sure that, if existing values are null, they are set to empty strings in the form to keep React happy
             const existingValues = {
-                reference: row.reference,
-                category: row.category,
-                description: row.description,
-                severity: row.severity,
-                extent: row.extent,
+                reference: row.reference ?? '',
+                category: row.category ?? '',
+                description: row.description ?? '',
+                severity: row.severity ?? '',
+                extent: row.extent ?? '',
             };
             setFormValues(existingValues);
 
-            // Get already-saved image file names for this marker (won't be any if new marker, but may be 1 or more if re-selecting existing marker):
-            const imagesResult = await db.query('SELECT id, image_filename FROM images WHERE marker_id = ? AND deleted_at IS NULL', [clickedId]);
-            const imageIds = imagesResult.values.map(row => row['id']); // if no images, imageIds will be empty array, no problem
-            const imageFileNames = imagesResult.values.map(row => row['image_filename']); // if no images, imageFileNames will be empty array, no problem
+            // Get already-saved images for this marker (may be 0, 1 or more):
+
+            let imagesResultRows = [];
+            if (platform !== 'web') { // on mobile
+                const imagesResult = await db.query(
+                    `
+                        SELECT id, image_filename 
+                        FROM images 
+                        WHERE marker_id = ? 
+                            AND deleted_at IS NULL
+                    `, 
+                    [clickedId]
+                );
+                imagesResultRows = imagesResult.values;
+            }
+            else { // on web
+                const { data, error } = await supabase
+                    .from('images')
+                    .select('id, image_filename')
+                    .eq('marker_id', clickedId)
+                    .is('deleted_at', null);
+                if (error) console.log('Error: ', error);
+                imagesResultRows = data;
+            }
+
+            const imageIds = imagesResultRows.map(row => row['id']); // if no images, imageIds will be empty array, no problem
+            const imageFileNames = imagesResultRows.map(row => row['image_filename']); // if no images, imageFileNames will be empty array, no problem
+            
             // Below commented-out line would not work, as await not allowed here. Using promise as below gets around this.
-            // const imageUris = imageFileNames.map(imageFileName => await getImageUri(imageFileName, imageFolder, saveDir))
-            const imageUris = await Promise.all(imageFileNames.map(async imageFileName => {
-                return await getImageUri(imageFileName, imageFolder, saveDir);
-            }));
+            //const imageUris = imageFileNames.map(imageFileName => await getImageUri(imageFileName, imageFolder, saveDir))
+            let imageUris = [];
+            if (platform !== 'web') { // on mobile
+                imageUris = await Promise.all(imageFileNames.map(async imageFileName => {
+                    return await getImageUri(imageFileName, imageFolder, saveDir);
+                }));
+            }
+            else { // on web
+                imageUris = await Promise.all(imageFileNames.map(async imageFileName => {
+                    return await getSupabaseImageUri(supabase, imageFileName, imageFolder);
+                }));
+            }
+            
             setImageIds(imageIds);
             setImageUris(imageUris);
 
-            // See if marker already in database or not:
-            const result = await db.query(
-                'SELECT EXISTS ( SELECT 1 FROM markers WHERE id = ? )', 
-                [clickedId]
-            );
-            const markerExists = Object.values(result.values[0])[0] === 1;
-            setMarkerInDb(markerExists);
+            setMarkerInDb(true); // marker must exist in database, as if not, we would have returned from this function earlier
 
         }
         func();
@@ -168,7 +230,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         setNewImages([]);
         setImageUris([]);
         setMarkerInDb(false);
-        setFormValues({reference: null, category: null, description: null, severity: null, extent: null});
+        setFormValues({reference: '', category: '', description: '', severity: '', extent: ''});
         setIsOpen(false); // finally, close the modal
     }
     
@@ -202,29 +264,62 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         const reference = formValues.reference;
         const category = formValues.category;
         const description = formValues.description;
-        const severity = formValues.severity;
-        const extent = formValues.extent;
+        const severity = formValues.severity === '' ? null : formValues.severity; // if form is empty string, cannot submit to database, as number is expected (should be made null instead)
+        const extent = formValues.extent === '' ? null : formValues.extent; // if form is empty string, cannot submit to database, as number is expected (should be made null instead)
 
-        if (markerInDb) {
-            // Edit existing entry in markers table of database:
-            await db.run(`
-                UPDATE markers 
-                SET reference = ?, category = ?, description = ?, severity = ?, extent = ?,
-                    updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-                WHERE id = ?
-                `,
-                [reference, category, description, severity, extent, clickedId]
-            );
+        const platform = Capacitor.getPlatform();
+
+        // Create new, or edit existing, marker in database (for supabase, can achieve simply with "upsert" method)
+
+        if (platform !== 'web') { // on mobile (no easy "upsert", best to do two separate statements based on condition)
+
+            if (markerInDb) {
+                // Edit existing entry in markers table of database:
+                await db.run(
+                    `
+                        UPDATE markers 
+                        SET reference = ?, category = ?, description = ?, severity = ?, extent = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        WHERE id = ?
+                    `,
+                    [reference, category, description, severity, extent, clickedId]
+                );
+            }
+            else {
+                // Create new entry in markers table of database:
+                await db.run(
+                    `
+                        INSERT INTO markers (id, plan_id, page_number, x, y, reference, category, description, severity, extent, created_at, updated_at) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                    `,
+                    [clickedId, planId, pageNum, x, y, reference, category, description, severity, extent]
+                );
+            }
+
         }
 
-        else {
-            // Create new entry in markers table of database:
-            await db.run(`
-                INSERT INTO markers (id, plan_id, page_number, x, y, reference, category, description, severity, extent, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                `,
-                [clickedId, planId, pageNum, x, y, reference, category, description, severity, extent]
-            );
+        else { // on web (easy "upsert", especially considering we have set up defaults to NOW for created_at and updated_at in Supabase)
+
+            const {error} = await supabase
+                .from('markers')
+                .upsert(
+                    {
+                        id: clickedId,
+                        plan_id: planId,
+                        page_number: pageNum,
+                        x,
+                        y,
+                        reference,
+                        category,
+                        description,
+                        severity,
+                        extent,
+                        updated_at: new Date().toISOString(), // set to NOW
+                        // Note, no need to specify created_at, as this will be set to NOW by default for new records, and if we were to set it NOW here, it would overwrite existing created_at if already exists (which we don't want).
+                    }, 
+                    { onConflict: 'id' }
+                );
+            if (error) console.log("Error: ", error);
+
         }
 
         // Save images and submit file names to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
@@ -232,9 +327,10 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             const imageId = crypto.randomUUID(); // ID for image to add (will always be unique)
             const imageFileName = await saveImage(image, imageFolder, saveDir);
             // Submit to images table of database:
-            await db.run(`
-                INSERT INTO images (id, marker_id, image_filename, created_at, updated_at) 
-                VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            await db.run(
+                `
+                    INSERT INTO images (id, marker_id, image_filename, created_at, updated_at) 
+                    VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
                 `,
                 [imageId, clickedId, imageFileName]
             );
@@ -289,15 +385,15 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
                 {/* Existing images (in database) associated with defect: */}
                 {imageUris.map((imageUri, i) => (
-                <div className="defect-image-container">
+                <div className="defect-image-container" key={i} >
                     <img className="defect-image" src={imageUri} />
-                    <ImageDeleteButton index={i} imageIds={imageIds} setImageIds={setImageIds} setImageUris={setImageUris}/>
+                    <ImageDeleteButton index={i} imageIds={imageIds} setImageIds={setImageIds} setImageUris={setImageUris} />
                 </div>
                 ))}
 
                 {/* Newly-added images to defect (not yet in database, but having temporary paths): */}
                 {newImages.map((image, i) => (
-                <div className="defect-image-container">
+                <div className="defect-image-container" key={i} >
                     <img className="defect-image" src={image.webPath} />
                     <NewImageDeleteButton index={i} setNewImages={setNewImages}/>
                 </div>
@@ -306,30 +402,49 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 <button type="submit">Submit</button>
                 <button type="button" onClick={onRequestClose}>Cancel</button>
 
-                <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal}/>
+                <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
 
             </form>
 
-
         </Modal>
     );
+
 }
 
 // Button to delete image (identified by index of imageIds and imageUris array):
 function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
 
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
 
     async function handleClick() {
 
         const imageId = imageIds[index];
-        await db.run(`
-            UPDATE images 
-            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE id = ?
-        `, [imageId]);
-    
+        const platform = Capacitor.getPlatform();
+
+        if (platform !== 'web') { // on mobile
+            await db.run(
+                `
+                    UPDATE images 
+                    SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                        updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                `, 
+                [imageId]
+            );
+        }
+        else { // on web
+            const {error} = await supabase
+                .from('images')
+                .update(
+                    {
+                        deleted_at: new Date().toISOString(), // set to NOW
+                        updated_at: new Date().toISOString(), // set to NOW
+                    }
+                )
+                .eq('id', imageId);
+            if (error) console.log("Error: ", error);
+        }
+        
         // Remove image from relevant states (triggering re-render of images):
         setImageIds(prev => prev.filter((_, i) => i !== index)); // sets imageIds to new array with same items as previous array, except without item at specified index
         setImageUris(prev => prev.filter((_, i) => i !== index));
@@ -359,7 +474,7 @@ function NewImageDeleteButton({index, setNewImages}) {
 // Button to delete marker:
 function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal}) {
 
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
 
     const [display, setDisplay] = useState('none');
 
@@ -377,19 +492,58 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
         // Even though ON DELETE CASCADE is already set up in database, only works for hard deletion, so for soft-deletion, need to manually get the images associated with the deleted marker:
         // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
         // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
-        await db.run(`
-            UPDATE images 
-            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE marker_id = ?
-        `, [markerId]);
+        
+        const platform = Capacitor.getPlatform();
 
-        await db.run(`
-            UPDATE markers 
-            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE id = ?`
-        , [markerId]);
+        if (platform !== 'web') { // on mobile
+
+            await db.run(
+                `
+                    UPDATE images 
+                    SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                        updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE marker_id = ?
+                `, 
+                [markerId]
+            );
+    
+            await db.run(
+                `
+                    UPDATE markers 
+                    SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                        updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                `, 
+                [markerId]
+            );
+
+        }
+
+        else { // on web
+
+            const {imagesError} = await supabase
+                .from('images')
+                .update(
+                    {
+                        deleted_at: new Date().toISOString(), // set to NOW
+                        updated_at: new Date().toISOString(), // set to NOW
+                    }
+                )
+                .eq('marker_id', markerId);
+                if (imagesError) console.log("Error: ", imagesError);
+
+            const {markersError} = await supabase
+                .from('markers')
+                .update(
+                    {
+                        deleted_at: new Date().toISOString(), // set to NOW
+                        updated_at: new Date().toISOString(), // set to NOW
+                    }
+                )
+                .eq('id', markerId);
+                if (markersError) console.log("Error: ", markersError);
+
+        }
 
         setClickLocations(prev => prev.filter(loc => loc.id !== markerId)); // visually erase marker
         closeModal();

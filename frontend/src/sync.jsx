@@ -62,7 +62,7 @@ async function cloudCleanUp(supabase, sqliteDb, userId, pdfFolder, imageFolder) 
     await cleanUpCloudFiles(supabase, pdfFileNames, imageFileNames, pdfFolder, imageFolder);
 }
 
-async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir) {
+export async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir) {
 
     console.log('Starting sync...');
     
@@ -187,10 +187,10 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
 
     // Sync PDF and image files to cloud file storage:
     if (table === 'plans') {
-        await uploadPdfsToSupabase(supabase, rowsToPush, pdfFolder, saveDir);
+        await uploadToSupabase(supabase, rowsToPush, pdfFolder, saveDir, 'application/pdf');
     }
     else if (table === 'images') {
-        await uploadImagesToSupabase(supabase, rowsToPush, imageFolder, saveDir);
+        await uploadToSupabase(supabase, rowsToPush, imageFolder, saveDir, 'image/jpeg');
     }
 
     // Update synced_at of pushed rows to match the row's updated_at (as current update of row has been synced):
@@ -408,44 +408,71 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
     console.log('Finished pulling from cloud for table: ', table);
 
 }
+    
+async function uploadToSupabase(supabase, rowsToPush, folder, saveDir, mimeType) {
 
-async function uploadPdfsToSupabase(supabase, rowsToPush, folder, saveDir) {
-
-    const fileNamesFilter = rowsToPush.map(row => row['pdf_filename']);
-    const fileNames = await getFilenames(folder, saveDir, fileNamesFilter);
-
-    for (const fileName of fileNames) {
-        const blob = await readAsBlob(fileName, folder, saveDir, 'application/pdf');
-        const { error } = await supabase.storage
-            .from('user-files') // only one bucket is required for all users, as the path to the filename is just treated as one long key (so can "create" a simulated new folder automatically)
-            .upload(`${folder}/${fileName}`, blob, { // note folder is in form userId/pdf, and filename includes .pdf extension 
-                contentType: 'application/pdf',
-                upsert: true, // allow overwriting
-            });
-        if (error) console.log("Error: ", error);
+    let field = null;
+    if (mimeType === 'application/pdf') {
+        field = 'pdf_filename'
+    }
+    else if (mimeType === 'image/jpeg') {
+        field = 'image_filename'
     }
 
-}
-    
-async function uploadImagesToSupabase(supabase, rowsToPush, folder, saveDir) {
-
-    const fileNamesFilter = rowsToPush.map(row => row['image_filename']);
+    const fileNamesFilter = rowsToPush.map(row => row[field]);
     const fileNames = await getFilenames(folder, saveDir, fileNamesFilter);
-    
+
     for (const fileName of fileNames) {
-        const blob = await readAsBlob(fileName, folder, saveDir, 'image/jpeg');
-        const { error } = await supabase.storage
-            .from('user-files') // only one bucket is required for all users, as the path to the filename is just treated as one long key (so can "create" a simulated new folder automatically)
-            .upload(`${folder}/${fileName}`, blob, { // note folder is in form userId/img, and filename includes .jpg extension 
-                contentType: 'image/jpeg',
-                upsert: true, // allow overwriting
-            });    
-        if (error) console.log("Error: ", error);
+        const blob = await readAsBlob(fileName, folder, saveDir, mimeType);
+        await saveBlobToSupabase(supabase, blob, fileName, folder, mimeType, true); // true to allow overwriting
     }
 
 }
 
-// Unlike upload, can easily use one download function for both images and pdfs:
+export async function saveBlobToSupabase(supabase, blob, fileName, folder, mimeType, overwrite) {
+
+    let newName = fileName;
+
+    if (!overwrite) {
+        const extension = newName.includes('.') ? newName.slice(newName.lastIndexOf('.')) : '';
+        const baseName = newName.slice(0, newName.lastIndexOf('.'));
+        let counter = 1;
+        while (await fileExistsInSupabase(supabase, newName, folder)) {
+            newName = `${baseName}(${counter})${extension}`;
+            counter++;
+        }
+        if (newName !== fileName) {
+            console.log(`Filename ${fileName} already exists. Name changed to ${newName}.`)
+        }
+    }
+
+    const { error } = await supabase.storage
+        .from('user-files') // only one bucket is required for all users, as the path to the filename is just treated as one long key (so can "create" a simulated new folder automatically)
+        .upload(`${folder}/${newName}`, blob, { // note folder is in form userId/img, and filename includes .jpg extension 
+            contentType: mimeType,
+            upsert: overwrite, // true to allow overwriting; false otherwise
+        });
+    if (error) console.log("Error: ", error);
+
+    return newName;
+
+}
+
+async function fileExistsInSupabase(supabase, fileName, folder) {
+    
+    const { data, error } = await supabase.storage
+        .from('user-files')
+        .list(folder);
+
+    if (error) {
+        console.error('Error checking file existence: ', error);
+        return false; // Assume not exists on error to avoid false positives
+    }
+
+    return data.some(file => file.name === fileName);
+    
+}
+
 async function downloadFromSupabase(supabase, fileNames, folder, saveDir) {
 
     for (const fileName of fileNames) {

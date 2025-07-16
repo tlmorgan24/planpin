@@ -1,22 +1,11 @@
-import { JeepSqlite } from 'jeep-sqlite/dist/components/jeep-sqlite';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 
 export async function initDb() {
 
+    if (Capacitor.getPlatform() === "web") return; // SQLite database only applicable on native mobile app; not web (which exclusively uses cloud Supabase database)
+
     const sqlite = new SQLiteConnection(CapacitorSQLite);
-
-    // need jeep-sqlite stencil component if on web:
-    if (Capacitor.getPlatform() === "web") {
-        if (!customElements.get("jeep-sqlite")) {
-            customElements.define("jeep-sqlite", JeepSqlite)
-            const jeepSqliteEl = document.createElement("jeep-sqlite");
-            document.body.appendChild(jeepSqliteEl);
-        }
-        await customElements.whenDefined("jeep-sqlite"); // wait for custom element to be defined before running app
-        await sqlite.initWebStore(); // wait for web store to be intialised before connecting to database below
-    }
-
     const ret = await sqlite.checkConnectionsConsistency();
     const isConn = (await sqlite.isConnection("markerdb")).result;
     let db;
@@ -26,10 +15,7 @@ export async function initDb() {
         db = await sqlite.createConnection("markerdb", false, "no-encryption", 1); // read-only set to false; version set to 1.
     }
 
-    await db.open(); // open database to allow subsequent queries
-    // ^ This is where web version fails due to issues reading sql-wasm.wasm. 
-    // But native mobile app works. Will just have to do native-only until I'm ready to do a serious cloud sync app
-    // (in which case, the Capacitor fallback for browser would be inadequate even if I got it working)
+    await db.open(); // open database to allow subsequent commands
 
     await createUsersTable(db);
     await createPlansTable(db);
@@ -54,6 +40,8 @@ have to worry about time zones (always UTC) or comparison (as always comparing s
 BUT, setting SQL function calls like this as a default value is not supported in SQLite. Can only set it manually
 in insert or update. So, we will make sure to set created_at and updated_at to this in EVERY INSERT statement 
 (and updated_at in every update statement, which we would need to do anyway even if the defaults did work).
+
+Note, the default of now IS set for Supabase, as that is supported there.
 */
 
 async function createUsersTable(db) { 

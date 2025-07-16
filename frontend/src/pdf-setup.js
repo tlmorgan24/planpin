@@ -38,15 +38,29 @@ export async function getFilenames(folder, saveDir, fileNamesFilter=undefined, e
 
 // Return all PDFs in folder of saveDir as object, with file names as keys and pdf.js pdf objects as values:
 // fileNamesFilter, if defined, means only the PDFs in the folder that match a name in fileNamesFilter are returned
-export async function getPdfObjects(folder, saveDir, fileNamesFilter=undefined) {
+// if saveDir is defined, PDFs are obtained from local SQLite storage, otherwise from Supabase storage
+export async function getPdfObjects(folder, saveDir, fileNamesFilter=undefined, supabase=null) {
 
-    const fileNames = await getFilenames(folder, saveDir, fileNamesFilter, '.pdf');
+    let fileNames = [];
+    if (saveDir) {
+        fileNames = await getFilenames(folder, saveDir, fileNamesFilter, '.pdf');
+    }
+    else {
+        fileNames = fileNamesFilter; // if getting from Supabase storage, we assume the fileNamesFilter passed specifies only & all the file names to retrieve
+    }
 
     // Get pdf.js pdf objects from file names, and add former keyed by latter to the object to be returned:
     const pdfObjects = {};
     for (let fileName of fileNames) {
-        const pdfData = await readPDF(fileName, folder, saveDir); // pdfData is data as Uint8Array
-        const pdf = await loadPDF(pdfData); // pdf is pdf.js pdf object
+        let pdfData = null; // pdfData will be data as Uint8Array
+        if (saveDir) { // get PDF from SQLite local storage
+            pdfData = await readPdf(fileName, folder, saveDir); 
+        } 
+        else { // get PDF from Supabase cloud storage
+            if (!supabase) return;
+            pdfData = await readPdfFromSupabase(supabase, fileName, folder);
+        }
+        const pdf = await loadPdf(pdfData); // pdf is pdf.js pdf object
         pdfObjects[fileName] = pdf;
     }
 
@@ -73,9 +87,9 @@ export async function ensureFolderExists(folder, saveDir) {
 
 // ---- LOAD PDF FILE ----
 
-// Return PDF data as UInt8Array, given file path (as name, folder path and directory):
+// Return PDF data as UInt8Array, given Filesystem file path (as name, folder path and directory):
 // (Note Uint8Array is data type required by pdf.js, hence our desire to convert)
-export async function readPDF(fileName, folder, saveDir) {
+export async function readPdf(fileName, folder, saveDir) {
     const file = await Filesystem.readFile({ // base64 data by default
         path: `${folder}/${fileName}`,
         directory: saveDir, // read from directory where plans get saved
@@ -94,8 +108,20 @@ function base64ToUint8Array(base64Data) {
     return bytes;
 }
 
+// Return PDF data as UInt8Array from Supabase storage:
+export async function readPdfFromSupabase(supabase, fileName, folder) {
+    const { data, error } = await supabase
+        .storage
+        .from('user-files')
+        .download(`${folder}/${fileName}`);
+    if (error) console.log('Download error: ', error);
+    const arrayBuffer = await data.arrayBuffer(); // data is blob, need to convert to UInt8Array
+    const uint8Array = new Uint8Array(arrayBuffer);
+    return uint8Array;
+}
+
 // Take PDF data as Uint8Array and return pdf.js pdf object:
-export async function loadPDF(fileData) {
+export async function loadPdf(fileData) {
     const loadingTask = pdfjsLib.getDocument(fileData); // getDocument takes Uint8Array
     const pdf = await loadingTask.promise;
     return pdf;

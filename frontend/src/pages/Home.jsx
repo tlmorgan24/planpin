@@ -1,15 +1,16 @@
 import { useContext, useState, useRef, useEffect, createContext } from "react";
+import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
 import { PageCanvas } from "../pdf-render";
 import { getPdfObjects, saveFile } from '../pdf-setup';
 import { AppContext } from '../App';
 import { DbContext, UserContext } from "../main";
-import { SyncButton } from "../sync";
+import { SyncButton, saveBlobToSupabase } from "../sync";
 
 
 // -- CONTEXT VARIABLES --
-// ****** NOTE: I THINK HOME CONTEXT IS NOT USED ANYWHERE APART FROM THIS HOME SCRIPT ITSELF.
-// MAYBE I CAN CLEAN THINGS UP SO THAT THERE IS NO NEED TO DEFINE HOME CONTEXT? Something to consider fur future
+// ****** NOTE: I THINK HOME CONTEXT IS NOT USED ANYWHERE APART FROM THIS HOME SCRIPT ITSELF AND THE SYNC BUTTON.
+// MAYBE I CAN CLEAN THINGS UP SO THAT THERE IS NO NEED TO DEFINE HOME CONTEXT? Something to consider for future
 
 // Define context object:
 export const HomeContext = createContext();
@@ -18,16 +19,41 @@ export const HomeContext = createContext();
 function HomeProvider({children}) {
 
     const {userId} = useContext(UserContext);
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
     const {pdfFolder, saveDir} = useContext(AppContext);
     const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
     
     async function refreshPdfObjects() {
 
-        if (!saveDir || pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
-        const plansResult = await db.query('SELECT pdf_filename FROM plans WHERE user_id = ? AND deleted_at IS NULL', [userId]);
-        const fileNamesFilter = plansResult.values.map(row => row['pdf_filename']); // array of all pdf_filenames belonging to the user that have not been soft deleted
-        const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
+        if (pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
+
+        let plansResultRows = [];
+        const platform = Capacitor.getPlatform();
+        if (platform !== 'web') {
+            if (!db || !saveDir) return; 
+            const plansResult = await db.query(
+                `
+                    SELECT pdf_filename 
+                    FROM plans 
+                    WHERE user_id = ? 
+                        AND deleted_at IS NULL
+                `, 
+                [userId]
+            );
+            plansResultRows = plansResult.values;
+        } else {
+            if (!supabase) return; 
+            const { data, error } = await supabase
+                .from('plans')
+                .select('pdf_filename')
+                .eq('user_id', userId)
+                .is('deleted_at', null);
+            if (error) console.log("Error: ", error);
+            plansResultRows = data;
+        }
+
+        const fileNamesFilter = plansResultRows.map(row => row['pdf_filename']); // array of all pdf_filenames belonging to the user that have not been soft deleted
+        const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter, supabase); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
         setPdfObjects(pdfObjects);
 
     };
@@ -36,7 +62,7 @@ function HomeProvider({children}) {
     // NB we will also (by using refreshPdfObjects in Sync button) refresh after every sync.
     useEffect(() => {
         refreshPdfObjects();
-    }, [pdfFolder, saveDir]);
+    }, [db, supabase, pdfFolder, saveDir]);
 
     return (
         <HomeContext.Provider value={{
@@ -74,7 +100,7 @@ export default function Home() {
 
 function PDFInput() {
 
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
     const {pdfFolder, saveDir} = useContext(AppContext);
     const {refreshPdfObjects} = useContext(HomeContext);
@@ -85,22 +111,43 @@ function PDFInput() {
         e.preventDefault();
 
         if (pdfFolder === undefined) return;
+        const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
 
         // Get & validate pdf file:
         const file = e.target.files[0]; // as we are not using a form, e.target is the file input itself, not the form. So, we do e.target instead of e.target.elements["file-input"]
         
         if (file && file.type === 'application/pdf') { // file verified to be valid, hence save
 
-            const fileName = await saveFile(file, pdfFolder, saveDir);
+            const platform = Capacitor.getPlatform();
             
-            const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
-            // Add PDF record:
-            await db.run(`
-                INSERT INTO plans (id, user_id, pdf_filename, created_at, updated_at) 
-                VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                `,
-                [id, userId, fileName]
-            );
+            if (platform !== 'web') {
+                // Save to file system:
+                const fileName = await saveFile(file, pdfFolder, saveDir);
+                // Add to database table:
+                await db.run(
+                    `
+                        INSERT INTO plans (id, user_id, pdf_filename, created_at, updated_at) 
+                        VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                    `,
+                    [id, userId, fileName]
+                );
+            }
+
+            else { // on web
+                // Save to file system:
+                const fileName = await saveBlobToSupabase(supabase, file, file.name, pdfFolder, 'application/pdf', false) // false to not allow overwriting (PDF name will be incremented as necessary)
+                // Add to database table:
+                const { error } = await supabase
+                    .from('plans')
+                    .insert({
+                        id: id,
+                        user_id: userId,
+                        pdf_filename: fileName,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    });
+                if (error) console.log('Error inserting plan: ', error);
+            }
 
             setUploadMessage('PDF file uploaded successfully!');
             await refreshPdfObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
@@ -162,11 +209,11 @@ function Plans() {
             {Object.entries(pdfObjects).map(([fileName, pdf]) => {
                 const href = `/plan?file=${encodeURIComponent(fileName)}`;
                 return (
-                    <div className='thumbnail'>
-                        <Link className='thumbnail-canvas' key={fileName} to={href}>
-                            <ThumbnailViewer pdf={pdf}/>
+                    <div className='thumbnail' key={fileName} >
+                        <Link className='thumbnail-canvas' to={href} >
+                            <ThumbnailViewer pdf={pdf} />
                         </Link>
-                        <PDFDeleteButton fileName={fileName}/>
+                        <PDFDeleteButton fileName={fileName} />
                     </div>
                 );
             })}
@@ -214,50 +261,146 @@ function ThumbnailViewer({pdf}) { // pdf is pdf.js pdf object
 // Button to delete PDF (identified by fileName input) and all associated database data and images on click:
 function PDFDeleteButton({fileName}) {
 
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
 
     async function handleClick() {
 
-        if (!db) return;
+        const platform = Capacitor.getPlatform();
+            
+        if (platform !== 'web') {
 
-        const plansResult = await db.query('SELECT id FROM plans WHERE pdf_filename = ? AND user_id = ?', [fileName, userId]);
-        const planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
-        // ^ note, we are confident plansResult.values will not be empty, and that the returned id has not been deleted, because if the PDFDeleteButton is being shown (i.e. was retrieved by refreshPdfObjects), the plan must exist and be non-soft-deleted in the database
+            if (!db) return;
 
-        const markersResult = await db.query('SELECT id FROM markers WHERE plan_id = ? AND deleted_at IS NULL', [planId]);
-        if (markersResult.values.length !== 0) {
-            const markerIds = markersResult.values.map(row => row['id']); // for one PDF, there will be multiple associated markers (we will want to delete all of them)
-            const markerIdPlaceholders = markerIds.map(() => '?').join(', ') // e.g. if 3 IDs, will equal '?, ?, ?'
+            const plansResult = await db.query(
+                `
+                    SELECT id 
+                    FROM plans 
+                    WHERE pdf_filename = ? 
+                        AND user_id = ?
+                `, 
+                [fileName, userId]
+            );
+            const planId = plansResult.values[0]['id']; // query should return only one value, so take the first (only) one
+            // ^ note, we are confident plansResult.values will not be empty, and that the returned id has not been deleted, because if the PDFDeleteButton is being shown (i.e. was retrieved by refreshPdfObjects), the plan must exist and be non-soft-deleted in the database
 
-            // Even though ON DELETE CASCADE is already set up in database, only works for hard deletion, so for soft-deletion, need to manually get the images associated with the deleted marker:
-            // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
-            // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
-            // Likewise, deletion from markers table must come before deletion from plans table.
-            await db.run(`
-                UPDATE images 
-                SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                    updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') 
-                WHERE marker_id IN (${markerIdPlaceholders}) 
-                AND deleted_at IS NULL
-            `, markerIds) // the "AND deleted_at IS NULL" means we don't reset the deleted_at of already-deleted records (which would artificially extend their lifetime and potentially cause bugs)
-            await db.run(`
-                UPDATE markers 
-                SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                    updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-                WHERE plan_id = ?
-            `, [planId]);
+            const markersResult = await db.query(
+                `
+                    SELECT id 
+                    FROM markers 
+                    WHERE plan_id = ? 
+                        AND deleted_at IS NULL
+                `, 
+                [planId]
+            );
+            if (markersResult.values.length !== 0) {
+                const markerIds = markersResult.values.map(row => row['id']); // for one PDF, there will be multiple associated markers (we will want to delete all of them)
+                const markerIdPlaceholders = markerIds.map(() => '?').join(', ') // e.g. if 3 IDs, will equal '?, ?, ?'
+
+                // Even though ON DELETE CASCADE is already set up in database, only works for hard deletion, so for soft-deletion, need to manually get the images associated with the deleted marker:
+                // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
+                // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
+                // Likewise, deletion from markers table must come before deletion from plans table.
+                await db.run(
+                    `
+                        UPDATE images 
+                        SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                            updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now') 
+                        WHERE marker_id IN (${markerIdPlaceholders}) 
+                            AND deleted_at IS NULL
+                    `, // ^ the "AND deleted_at IS NULL" means we don't reset the deleted_at of already-deleted records (which would artificially extend their lifetime and potentially cause bugs)
+                    markerIds
+                );
+                await db.run(
+                    `
+                        UPDATE markers 
+                        SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                            updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        WHERE plan_id = ?
+                            AND deleted_at IS NULL
+                    `,  // ^ the "AND deleted_at IS NULL" means we don't reset the deleted_at of already-deleted records (which would artificially extend their lifetime and potentially cause bugs)
+                    [planId]
+                );
+            }
+
+            await db.run(
+                `
+                    UPDATE plans 
+                    SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                        updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                `, 
+                [planId]
+            );
+        
         }
 
-        await db.run(`
-            UPDATE plans 
-            SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE id = ?
-        `, [planId]);
+        else { // on web
+
+            if (!supabase) return;
+
+            // Get plan ID from pdf_filename and user_id:
+            const { data: plansData, error: plansError } = await supabase
+                .from('plans')
+                .select('id')
+                .eq('pdf_filename', fileName)
+                .eq('user_id', userId)
+                .single(); // assumes one result expected
+            if (plansError) console.log('Error fetching plan: ', plansError);
+
+            const planId = plansData['id'];
+
+            // Get all markers for that plan which are not soft-deleted:
+            const { data: markersData, error: markersError } = await supabase
+                .from('markers')
+                .select('id')
+                .eq('plan_id', planId)
+                .is('deleted_at', null);
+            if (markersError) console.log('Error fetching markers: ', markersError);
+
+            // Soft-delete images and markers associated with plan:
+            if (markersData.length !== 0) {
+
+                const markerIds = markersData.map(marker => marker.id);
+
+                // Soft-delete images:
+                const { error: imagesUpdateError } = await supabase
+                    .from('images')
+                    .update({
+                        deleted_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    })
+                    .in('marker_id', markerIds)
+                    .is('deleted_at', null);
+                if (imagesUpdateError) console.log('Error soft-deleting images: ', imagesUpdateError);
+
+                // Soft-delete markers:
+                const { error: markersUpdateError } = await supabase
+                    .from('markers')
+                    .update({
+                        deleted_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('plan_id', planId)
+                    .is('deleted_at', null);
+                if (markersUpdateError) console.log('Error soft-deleting markers: ', markersUpdateError);
+
+            }
+
+            // Soft-delete the plan itself:
+            const { error: planUpdateError } = await supabase
+                .from('plans')
+                .update({
+                    deleted_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', planId);
+            if (planUpdateError) console.log('Error soft-deleting plan: ', planUpdateError);
+
+        }
         
-        // Note we are not deleting the files from local storage here, as that will happen during clean up 30 days later (see database.jsx)
+        // Note we are not hard-deleting the files from storage here, as that happens as part of separate clean-up function (see sync.jsx)
 
         await refreshPdfObjects();
 

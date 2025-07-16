@@ -1,4 +1,5 @@
 import { createContext, useState, useContext } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Directory } from '@capacitor/filesystem';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { UserContext, DbContext } from './main';
@@ -15,7 +16,12 @@ export const AppContext = createContext();
 // Define context provider:
 function AppProvider({children}) {
 
-  	const [saveDir, setSaveDir] = useState(Directory.Documents); // root directory to save/load PDFs and images to/from
+    let saveDirectory = null;
+    if (Capacitor.getPlatform() !== 'web') {
+        saveDirectory = Directory.Documents;
+    }
+
+  	const [saveDir, setSaveDir] = useState(saveDirectory); // root directory of local Filesystem to save/load PDFs and images to/from (null if on web; will save/load directly to Supabase user-files bucket)
     const [pdfFolder, setPdfFolder] = useState(undefined); // path from saveDir to folder in/from which to save/load PDFs
     const [imageFolder, setImageFolder] = useState(undefined); // path from saveDir to folder in/from which to save/load images
 
@@ -43,10 +49,10 @@ function AppProvider({children}) {
 
 export default function App() {
 
-    const {db} = useContext(DbContext);
+    const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
-
-    if (!db) return <Loading />;
+    const platform = Capacitor.getPlatform();
+    if ((platform !== 'web' && !db) || (platform === 'web' && !supabase)) return <Loading />; // make sure we wait for SQLite or Supabase database clients to initialise, if on mobile/web, respectively.
     if (userId === undefined) { // user has neither signed in, nor chosen to continue as guest yet. Must take them to login screen.
         return(
             <AppProvider>
