@@ -1,6 +1,7 @@
 import { Filesystem } from '@capacitor/filesystem';
 import { Camera, CameraResultType } from '@capacitor/camera';
 import { saveFile } from './pdf-setup';
+import { saveBlobToSupabase } from './sync';
 
 export async function captureImage() {
     
@@ -20,7 +21,7 @@ export async function captureImage() {
 
 }
 
-export async function saveImage(image, folder, saveDir) { // image is as saved from Camera.getPhoto with resultType: CameraResultType.Uri.
+export async function saveImage(image, folder, saveDir, supabase=null) { // image is as saved from Camera.getPhoto with resultType: CameraResultType.Uri.
 
     const extension = image.format == 'jpeg' ? 'jpg' : image.format; // use 'jpg' extension for jpeg format, otherwise use the format as is (e.g. png)
     const desiredName = crypto.randomUUID() + '.' + extension; // unique filename, e.g. '7741B70A-570B-4253-841C-96FC3CF19AC3.jpg';
@@ -28,7 +29,13 @@ export async function saveImage(image, folder, saveDir) { // image is as saved f
     const response = await fetch(image.webPath);
     const blob = await response.blob();
 
-    const newName = await saveFile(blob, folder, saveDir, desiredName) // as used for PDFs in pdf-setup.jsx
+    let newName;
+    if (saveDir) {
+        newName = await saveFile(blob, folder, saveDir, desiredName)
+    }
+    else {
+        newName = await saveBlobToSupabase(supabase, blob, desiredName, folder, 'image/jpeg')
+    }
 
     return newName;
 

@@ -324,16 +324,32 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
         // Save images and submit file names to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
         for (const image of newImages) {
+            
             const imageId = crypto.randomUUID(); // ID for image to add (will always be unique)
-            const imageFileName = await saveImage(image, imageFolder, saveDir);
+            const imageFileName = await saveImage(image, imageFolder, saveDir, supabase);
             // Submit to images table of database:
-            await db.run(
-                `
-                    INSERT INTO images (id, marker_id, image_filename, created_at, updated_at) 
-                    VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                `,
-                [imageId, clickedId, imageFileName]
-            );
+            if (platform !== 'web') {
+                await db.run(
+                    `
+                        INSERT INTO images (id, marker_id, image_filename, created_at, updated_at) 
+                        VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                    `,
+                    [imageId, clickedId, imageFileName]
+                );
+            }
+            else { // on web
+                await supabase
+                    .from('images')
+                    .insert(
+                        {
+                            id: imageId,
+                            marker_id: clickedId,
+                            image_filename: imageFileName,
+                            // no need for created_at and updated_at, as supabase makes these default to now
+                        }
+                    ); 
+            }
+
         }
 
         closeModal();
