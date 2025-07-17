@@ -1,8 +1,8 @@
-export default function Loading() {
+export default function Loading({ message = "Loading..." }) {
 
     return(
         <div className="loading-container">
-            <p>Loading...</p>
+            <p>{message}</p>
         </div>
     );
 

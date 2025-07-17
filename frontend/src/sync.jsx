@@ -1,8 +1,9 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { DbContext, UserContext } from "./main";
 import { AppContext } from "./App";
 import { HomeContext } from "./pages/Home";
 import { getFilenames, saveFile, readAsBlob, removeFile } from "./pdf-setup";
+import Loading from "./pages/Loading";
 
 /*
 NOTE: a synced_at column exists in each local table to mean record-wise "last PUSHED TO cloud".
@@ -18,15 +19,19 @@ column is EXCLUDED (otherwise there would be an error). The pullToCloud function
 it can simple pull all columns of the cloud database (as all columns in cloud exist locally, unlike vice versa).
 */
 
+
+// Note, this sync button should not be shown on web, as sync is only applicable on mobile app (sync is always up-to-date on cloud):
 export function SyncButton() {
 
     const {db: sqliteDb, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
     const {pdfFolder, imageFolder, saveDir} = useContext(AppContext);
     const {refreshPdfObjects} = useContext(HomeContext);
+    const [loading, setLoading] = useState(false); // we will make button say "Sync" if false; show loading icon otherwise
 
     async function handleClick() {
-        if (!sqliteDb || !supabase || pdfFolder === undefined || imageFolder === undefined || userId === undefined) return;
+        setLoading(true);
+        if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined) return;
         console.log("Sync clicked.")
         console.log("Current local users table: ", await sqliteDb.query('SELECT * FROM users'));
         console.log("Current cloud users table: ", await supabase.from('users').select('*'));
@@ -40,13 +45,18 @@ export function SyncButton() {
             await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
         }
         else {
+            if (!supabase) return;
             await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
             await refreshPdfObjects();
         }
+        setLoading(false);
     }
 
     return(
-        <button type="button" onClick={handleClick}>Sync</button>
+        <button type="button" onClick={handleClick}>
+            {loading ? <Loading /> : "Sync"}
+            {/* ^ make inside of button show Loading icon if sync is underway; otherwise say "Sync" to invite user to begin the sync */}
+        </button>
     );
 
 }
@@ -162,7 +172,7 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
         .from(table)
         .select('id, updated_at')
         .in('id', changedIds);
-    if (queryError) console.log("Error: ", queryError);
+    if (queryError) console.error("Error: ", queryError);
 
     // Convert to map for quick lookup of cloud updated_at by ID:
     const cloudMap = {};
@@ -183,7 +193,7 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
     const { error: upsertError } = await supabase
         .from(table)
         .upsert(rowsToPush, {onConflict: ['id']}); // insert if ID does not exist, else update
-    if (upsertError) console.log("Error: ", upsertError);
+    if (upsertError) console.error("Error: ", upsertError);
 
     // Sync PDF and image files to cloud file storage:
     if (table === 'plans') {
@@ -229,7 +239,7 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
         .from(view) // view I have set up in Supabase, already filtered to current authenticated user (so no need to do any separate WHERE clause for this query or other queries which use this data).
         .select('*')
         .gt('updated_at', lastSyncedFromCloud || '1970-01-01T00:00:00Z'); // for efficiency, only get records changed since last sync (or never synced)
-    if (error) console.log("Error: ", error);
+    if (error) console.error("Error: ", error);
     
     /*
 
@@ -452,7 +462,7 @@ export async function saveBlobToSupabase(supabase, blob, fileName, folder, mimeT
             contentType: mimeType,
             upsert: overwrite, // true to allow overwriting; false otherwise
         });
-    if (error) console.log("Error: ", error);
+    if (error) console.error("Error: ", error);
 
     return newName;
 
@@ -479,10 +489,8 @@ async function downloadFromSupabase(supabase, fileNames, folder, saveDir) {
         const { data: blob, error } = await supabase.storage
             .from('user-files')
             .download(`${folder}/${fileName}`);
-        if (error) console.log("Error: ", error);
-        if (!error) console.log(`Successfully retrieved file: ${fileName}`);
+        if (error) console.error("Error: ", error);
         await saveFile(blob, folder, saveDir, fileName, true); 
-        console.log(`saveFile has been run (but inner details unknown) for file: ${fileName}`);
         /*
         The saveFile function, though originally created for PDF file objects from HTML form submission, 
         also works in general for blobs of any file type.
@@ -640,7 +648,7 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
             .from('images')
             .select('id, deleted_at, image_filename') // we need image_filename to delete the file from cloud storage later
             .in('id', imageIds);
-        if (error) console.log("Error: ", error);
+        if (error) console.error("Error: ", error);
 
         const safeImageRecords = imagesCloudCheck.filter(row => row.deleted_at !== null);
         safeImageIds = safeImageRecords.map(row => row['id']);
@@ -673,7 +681,7 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
             .from('markers')
             .select('id, deleted_at')
             .in('id', markerIds);
-        if (error) console.log("Error: ", error);
+        if (error) console.error("Error: ", error);
 
         safeMarkerIds = markersCloudCheck
             .filter(row => row.deleted_at !== null)
@@ -702,7 +710,7 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
             .from('plans')
             .select('id, deleted_at, pdf_filename') // we need pdf_filename to delete the file from cloud storage later
             .in('id', planIds);
-        if (error) console.log("Error: ", error);
+        if (error) console.error("Error: ", error);
 
         const safePlanRecords = plansCloudCheck.filter(row => row.deleted_at !== null);
         safePlanIds = safePlanRecords.map(row => row['id']);
@@ -719,7 +727,7 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
             .from('images')
             .delete()
             .in('id', safeImageIds);
-        if (error) console.log("Error: ", error);
+        if (error) console.error("Error: ", error);
     }
 
     if (safeMarkerIds.length > 0) {
@@ -727,7 +735,7 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
             .from('markers')
             .delete()
             .in('id', safeMarkerIds);
-        if (error) console.log("Error: ", error);
+        if (error) console.error("Error: ", error);
     }
 
     if (safePlanIds.length > 0) {
@@ -735,7 +743,7 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
             .from('plans')
             .delete()
             .in('id', safePlanIds);
-        if (error) console.log("Error: ", error);
+        if (error) console.error("Error: ", error);
     }
 
     return { pdfFileNames:safePdfFileNames, imageFileNames:safeImageFileNames } // for deletion from cloud file storage
@@ -758,5 +766,5 @@ async function cleanUpCloudFiles(supabase, pdfFileNames, imageFileNames, pdfFold
     const { error } = await supabase.storage
         .from('user-files')
         .remove([...imageFilePaths, ...pdfFilePaths]); // supabase allows batch deletion of multiple files at once
-    if (error) console.log("Error: ", error);
+    if (error) console.error("Error: ", error);
 }

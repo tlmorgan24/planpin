@@ -1,4 +1,5 @@
 import { useContext, useState, useRef, useEffect, createContext } from "react";
+import Modal from 'react-modal';
 import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
 import { PageCanvas } from "../pdf-render";
@@ -6,6 +7,8 @@ import { getPdfObjects, saveFile } from '../pdf-setup';
 import { AppContext } from '../App';
 import { DbContext, UserContext } from "../main";
 import { SyncButton, saveBlobToSupabase } from "../sync";
+import Loading from "./Loading";
+import { logOut, deleteAccount } from "./Auth";
 
 
 // -- CONTEXT VARIABLES --
@@ -22,8 +25,12 @@ function HomeProvider({children}) {
     const {db, supabase} = useContext(DbContext);
     const {pdfFolder, saveDir} = useContext(AppContext);
     const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
-    
+    const [loadingPdfObjects, setLoadingPdfObjects] = useState(false); // to allow loading icon to show when PDF objects are being fetched
+    const [settingsOpen, setSettingsOpen] = useState(false); // to allow settings modal to pop out when desired
+
     async function refreshPdfObjects() {
+
+        setLoadingPdfObjects(true);
 
         if (pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
 
@@ -48,13 +55,15 @@ function HomeProvider({children}) {
                 .select('pdf_filename')
                 .eq('user_id', userId)
                 .is('deleted_at', null);
-            if (error) console.log("Error: ", error);
+            if (error) console.error("Error: ", error);
             plansResultRows = data;
         }
 
         const fileNamesFilter = plansResultRows.map(row => row['pdf_filename']); // array of all pdf_filenames belonging to the user that have not been soft deleted
         const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter, supabase); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
         setPdfObjects(pdfObjects);
+        
+        setLoadingPdfObjects(false);
 
     };
 
@@ -66,7 +75,9 @@ function HomeProvider({children}) {
 
     return (
         <HomeContext.Provider value={{
-            pdfObjects, refreshPdfObjects
+            pdfObjects, refreshPdfObjects,
+            loadingPdfObjects, setLoadingPdfObjects,
+            settingsOpen, setSettingsOpen,
         }}>
             {children}
         </HomeContext.Provider>
@@ -81,9 +92,13 @@ export default function Home() {
     return(
         <HomeProvider>
             <div className="home-container">
-                <SyncButton />
-                <h1>My Plans</h1>
-                <RefreshPlansButton/>
+                <div className="non-plans">
+                    {Capacitor.getPlatform() !== 'web' ? <SyncButton /> : null} {/* only show sync button on mobile app */}
+                    <h1>My Plans</h1>
+                    <RefreshPlansButton />
+                    <SettingsButton />
+                    <SettingsModal />
+                </div>
                 <Plans/>
                 {/* 
                 Note the PDF input itself is treated like an existing PDF, appearing inside the Plans element.
@@ -96,6 +111,26 @@ export default function Home() {
 }
 
 
+// ---- BUTTONS ----
+
+function RefreshPlansButton() {
+    const {refreshPdfObjects} = useContext(HomeContext);
+    return(
+        <button type="button" onClick={refreshPdfObjects}>Refresh plans</button>
+    );
+}
+
+function SettingsButton() {
+    const {setSettingsOpen} = useContext(HomeContext);
+    function handleClick() {
+        setSettingsOpen(true);
+    }
+    return(
+        <button type="button" onClick={handleClick}>Settings</button>
+    );
+}
+
+
 // ---- PDF INPUT ----
 
 function PDFInput() {
@@ -103,14 +138,15 @@ function PDFInput() {
     const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
     const {pdfFolder, saveDir} = useContext(AppContext);
-    const {refreshPdfObjects} = useContext(HomeContext);
+    const {refreshPdfObjects, loadingPdfObjects, setLoadingPdfObjects} = useContext(HomeContext);
     const [uploadMessage, setUploadMessage] = useState(null);
     
     const handleUpload = async function(e) {
 
         e.preventDefault();
-
         if (pdfFolder === undefined) return;
+        setLoadingPdfObjects(true);
+
         const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
 
         // Get & validate pdf file:
@@ -146,7 +182,7 @@ function PDFInput() {
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                     });
-                if (error) console.log('Error inserting plan: ', error);
+                if (error) console.error('Error inserting plan: ', error);
             }
 
             setUploadMessage('PDF file uploaded successfully!');
@@ -157,37 +193,46 @@ function PDFInput() {
         } else {
             setUploadMessage('Please upload a file.');
         }
+
+        // Only show the upload message for 5s before removing it:
+        setTimeout(() => {
+            setUploadMessage(null);
+        }, 5000)
         
     };
 
-    return (
-        <div className="pdf-input-container">
-            {/* 
-            File inputs are notoriously hard to style directly. To enable styling, we will
-            hide the actual file input (set display: none) and style the label instead (clicking HTML label
-            automatically triggers the input it is associated with via the "for" attribute).
+    // We will style the overall pdf-input-container similarly to thumbnails of existing PDFs (e.g. same size), to fit nicely in layout.
+    // If plans are loading (refreshPdfObjects is running), we will show a loading icon where the input container should go.
 
-            We will style the overall pdf-input-container similarly to thumbnails of existing PDFs (e.g. same size), to fit nicely in layout.
+    // Loading icon:
+    if (loadingPdfObjects) {
+        return (
+            <div className="pdf-input-container">
+                <Loading />
+            </div>
+        )
+    }
 
-            Also, rather than a traditional form with submit button (which would require user to select submit after
-            selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
-            */}
-            <label className="custom-file-input" htmlFor="file-input">File input</label>
-            <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/>
-            <p>{uploadMessage}</p>
-        </div>
-    );
+    // PDF input:
+    else {
+        return (
+            <div className="pdf-input-container">
+                {/* 
+                File inputs are notoriously hard to style directly. To enable styling, we will
+                hide the actual file input (set display: none) and style the label instead (clicking HTML label
+                automatically triggers the input it is associated with via the "for" attribute).
+
+                Also, rather than a traditional form with submit button (which would require user to select submit after
+                selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
+                */}
+                <label className="custom-file-input" htmlFor="file-input">File input</label>
+                <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/>
+                <p>{uploadMessage}</p>
+            </div>
+        );
+    }
+    
 }
-
-// ---- REFRESH PLANS ----
-
-function RefreshPlansButton() {
-    const {refreshPdfObjects} = useContext(HomeContext);
-    return(
-        <button type="button" onClick={refreshPdfObjects}>Refresh plans</button>
-    );
-}
-
 
 
 // ---- EXISTING PLANS ----
@@ -263,9 +308,11 @@ function PDFDeleteButton({fileName}) {
 
     const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
-    const {refreshPdfObjects} = useContext(HomeContext);
+    const {refreshPdfObjects, setLoadingPdfObjects} = useContext(HomeContext);
 
     async function handleClick() {
+
+        setLoadingPdfObjects(true);
 
         const platform = Capacitor.getPlatform();
             
@@ -347,7 +394,7 @@ function PDFDeleteButton({fileName}) {
                 .eq('pdf_filename', fileName)
                 .eq('user_id', userId)
                 .single(); // assumes one result expected
-            if (plansError) console.log('Error fetching plan: ', plansError);
+            if (plansError) console.error('Error fetching plan: ', plansError);
 
             const planId = plansData['id'];
 
@@ -357,7 +404,7 @@ function PDFDeleteButton({fileName}) {
                 .select('id')
                 .eq('plan_id', planId)
                 .is('deleted_at', null);
-            if (markersError) console.log('Error fetching markers: ', markersError);
+            if (markersError) console.error('Error fetching markers: ', markersError);
 
             // Soft-delete images and markers associated with plan:
             if (markersData.length !== 0) {
@@ -373,7 +420,7 @@ function PDFDeleteButton({fileName}) {
                     })
                     .in('marker_id', markerIds)
                     .is('deleted_at', null);
-                if (imagesUpdateError) console.log('Error soft-deleting images: ', imagesUpdateError);
+                if (imagesUpdateError) console.error('Error soft-deleting images: ', imagesUpdateError);
 
                 // Soft-delete markers:
                 const { error: markersUpdateError } = await supabase
@@ -384,7 +431,7 @@ function PDFDeleteButton({fileName}) {
                     })
                     .eq('plan_id', planId)
                     .is('deleted_at', null);
-                if (markersUpdateError) console.log('Error soft-deleting markers: ', markersUpdateError);
+                if (markersUpdateError) console.error('Error soft-deleting markers: ', markersUpdateError);
 
             }
 
@@ -396,7 +443,7 @@ function PDFDeleteButton({fileName}) {
                     updated_at: new Date().toISOString(),
                 })
                 .eq('id', planId);
-            if (planUpdateError) console.log('Error soft-deleting plan: ', planUpdateError);
+            if (planUpdateError) console.error('Error soft-deleting plan: ', planUpdateError);
 
         }
         
@@ -410,4 +457,32 @@ function PDFDeleteButton({fileName}) {
         <button type="button" className="delete-button" onClick={handleClick}>Delete</button>
     );
 
+}
+
+
+// ---- SETTINGS ----
+
+function SettingsModal() {
+
+    const { userId, setUserId } = useContext(UserContext);
+    const { supabase } = useContext(DbContext);
+    const {settingsOpen, setSettingsOpen} = useContext(HomeContext);
+
+    function closeSettings() {
+        setSettingsOpen(false);
+    }
+    async function logOutUser() {
+        await logOut(supabase, setUserId);
+    }
+    async function deleteUserAccount() {
+        await deleteAccount(userId, setUserId);
+    }
+
+    return (
+        <Modal isOpen={settingsOpen} onRequestClose={closeSettings}>
+            <button type="button" onClick={logOutUser}>Log out</button>
+            <button type="button" onClick={deleteUserAccount}>Delete account</button>
+            <button type="button" onClick={closeSettings}>Close</button>
+        </Modal>
+    );
 }

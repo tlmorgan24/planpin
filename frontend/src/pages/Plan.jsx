@@ -98,7 +98,7 @@ function PlanProvider({children}) {
                     .eq('user_id', userId)
                     .is('deleted_at', null)
                     .single(); // assumes one result expected
-                if (plansError) console.log('Error fetching plan: ', plansError);
+                if (plansError) console.error('Error fetching plan: ', plansError);
                 planId = plansData['id']
 
                 // Get marker data for this plan:
@@ -107,7 +107,7 @@ function PlanProvider({children}) {
                     .select('id, page_number, x, y')
                     .eq('plan_id', planId)
                     .is('deleted_at', null);
-                if (markersError) console.log("Error fetching markers: ", markersError);
+                if (markersError) console.error("Error fetching markers: ", markersError);
                 markersResultRows = markersData;
 
             } 

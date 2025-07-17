@@ -73,11 +73,10 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
             ({data, error} = await supabase.auth.signInWithPassword(formValues));
         }
         else {
-            console.log("Invalid authentication type");
-            throw new Error("Invalid authentication type")
+            console.error("Invalid authentication type");
         }
         if (error) {
-            console.log("Error: ", error);
+            console.error("Error: ", error);
             // Sign-up related errors:
             if (error.code === 'weak_password') {
                 setMessage("Weak password. Please choose a stronger password.");
@@ -183,7 +182,7 @@ async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db, su
                     ignoreDuplicates: true,
                 } // ^ equivalent to ON CONFLICT(id) DO NOTHING (i.e. will NOT update if already exists)
             );
-        if (error) console.log("Error: ", error);
+        if (error) console.error("Error: ", error);
         // note, we do not 'sync' if we are already on the web (using the cloud), as the cloud is itself the source of truth. It is up to the mobile to sync with cloud when necessary
     }
 
@@ -193,5 +192,22 @@ async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db, su
     setUserId(userId);
     setPdfFolder(pdfFolder);
     setImageFolder(imageFolder);
+
+}
+
+export async function logOut(supabase, setUserId) {
+
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error('Error signing out: ', error.message);
+
+    setUserId(undefined);
+
+}
+
+export async function deleteAccount(userId, setUserId) {
+
+    // HERE, WILL HAVE TO SEND REQUEST TO SERVER, AS ACCOUNT DELETION REQUIRES SERVICE KEY
+
+    setUserId(undefined);
 
 }

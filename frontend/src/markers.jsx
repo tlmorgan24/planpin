@@ -5,6 +5,7 @@ import { AppContext } from "./App";
 import { DbContext } from "./main";
 import Modal from 'react-modal';
 import { captureImage, saveImage, getImageUri, getSupabaseImageUri } from "./image-setup";
+import Loading from "./pages/Loading";
 
 // ---- MARKER COMPONENT ----
 
@@ -105,6 +106,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imageFileNames
     const [newImages, setNewImages] = useState([]); // will be array of image objects for each NEWLY ADDED image to the marker.
     const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
+    const [loading, setLoading] = useState(false); // to allow modal to show a loading icon when this is set to true
+    const [imagesToLoad, setImagesToLoad] = useState(0); // number of images remaining to load before we can set loading to false (will be set to number of imageUris)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
     const [formValues, setFormValues] = useState({reference: '', category: '', description: '', severity: '', extent: ''});
@@ -124,6 +127,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             on clickedId.
             */
 
+            setLoading(true);
             setIsOpen(true);
 
             const platform = Capacitor.getPlatform();
@@ -144,6 +148,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 );
                 if (markersResult.values.length !== 1) { // new marker; no database data yet; will not update default form inputs or attempt to get images below
                     setMarkerInDb(false);
+                    setLoading(false);
                     return;
                 }
                 row = markersResult.values[0]; // query should return one row (if marker exists) or zero rows (if no marker exists). If latter, row will return undefined
@@ -155,9 +160,10 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     .select('reference, category, description, severity, extent')
                     .eq('id', clickedId)
                     .is('deleted_at', null);
-                if (error) console.log('Error: ', error);
+                if (error) console.error('Error: ', error);
                 if (data.length !== 1) { // new marker; no database data yet; will not update default form inputs or attempt to get images below
                     setMarkerInDb(false);
+                    setLoading(false);
                     return;
                 }
                 row = data[0];
@@ -194,7 +200,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     .select('id, image_filename')
                     .eq('marker_id', clickedId)
                     .is('deleted_at', null);
-                if (error) console.log('Error: ', error);
+                if (error) console.error('Error: ', error);
                 imagesResultRows = data;
             }
 
@@ -220,9 +226,26 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             setMarkerInDb(true); // marker must exist in database, as if not, we would have returned from this function earlier
 
+            // Instead of directly setting loading to false, we want to check all images have actually been rendered (not just the URIs fetched):
+            
+            if (imageUris.length > 0) {
+                setImagesToLoad(imageUris.length); // initially, need to load all these images; as the images load, imagesToLoad will be decremented by handleImageLoaded, eventually setting loading to false
+            } else {
+                setLoading(false); // if no images, nothing more to load
+            }
+
         }
         func();
     }, [clickedId]);
+
+    function handleImageLoaded() {
+        setImagesToLoad(prev => {
+            if (prev === 1) {
+                setLoading(false);
+            }
+            return prev - 1;
+        });
+    }
 
     // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
     function closeModal() {
@@ -232,6 +255,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         setMarkerInDb(false);
         setFormValues({reference: '', category: '', description: '', severity: '', extent: ''});
         setIsOpen(false); // finally, close the modal
+        setLoading(true); // so next modal will open with loading screen until its effect finishes
     }
     
     // If user requests close without pressing submit, close form and without submitting to database and erase the marker just added:
@@ -245,6 +269,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     }
 
     async function onAddPhoto() {
+        setLoading(true);
         const image = await captureImage(); // image object is as saved from Camera.getPhoto
         setNewImages(prev => [...prev, image]); // add new image to newImages array
     }
@@ -255,6 +280,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         e.preventDefault();
 
         if (imageFolder === undefined) return;
+        setLoading(true);
  
         const clickLocation = clickLocations.find(loc => loc.id === clickedId);
         const pageNum = clickLocation.pageNum;
@@ -318,13 +344,13 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     }, 
                     { onConflict: 'id' }
                 );
-            if (error) console.log("Error: ", error);
+            if (error) console.error("Error: ", error);
 
         }
 
         // Save images and submit file names to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
         for (const image of newImages) {
-            
+
             const imageId = crypto.randomUUID(); // ID for image to add (will always be unique)
             const imageFileName = await saveImage(image, imageFolder, saveDir, supabase);
             // Submit to images table of database:
@@ -354,6 +380,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
         closeModal();
 
+        // we can leave loading=true, so that next time modal is opened, will open with loading screen until useEffect finishes
+
     }
 
     function handleFormChange(event) {
@@ -362,9 +390,21 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     };
 
     return(
-        <Modal className="modal" isOpen={isOpen} onRequestClose={onRequestClose}>
-            
-            <form onSubmit={handleSubmit}>
+        <Modal className="modal" isOpen={isOpen} onRequestClose={onRequestClose} >
+
+            {/* 
+            If loading, we show the loading screen and set the form to hidden. By setting it to hidden,
+            the images will still load and onLoad triggers will fire, allowing the loading screen to eventually 
+            go away once all images are loaded. We also need to set position to fixed and off screen, so won't take up 
+            space in modal until all ready. If we were to set display to none, the triggers would never fire, and
+            the loading screen would never go away. If we were to simply set loading to false at the end of the useEffect 
+            and not bother with onLoad triggers, the images would come in one by one, with their delete buttons appearing
+            before they do, and it looks quite messy.
+            */}
+
+            { loading ? <Loading /> : null }
+
+            <form onSubmit={handleSubmit} style={ loading ? {position: 'fixed', top: '200vh', visibility: 'hidden'} : {} } > {/* properties left as defaults defined in index.css if not loading */}
 
                 <button type="button" onClick={onAddPhoto}>Add image</button>
                 <br/>
@@ -402,7 +442,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 {/* Existing images (in database) associated with defect: */}
                 {imageUris.map((imageUri, i) => (
                 <div className="defect-image-container" key={i} >
-                    <img className="defect-image" src={imageUri} />
+                    <img className="defect-image" src={imageUri} onLoad={handleImageLoaded} />
                     <ImageDeleteButton index={i} imageIds={imageIds} setImageIds={setImageIds} setImageUris={setImageUris} />
                 </div>
                 ))}
@@ -421,7 +461,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
 
             </form>
-
+            
         </Modal>
     );
 
@@ -458,7 +498,7 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
                     }
                 )
                 .eq('id', imageId);
-            if (error) console.log("Error: ", error);
+            if (error) console.error("Error: ", error);
         }
         
         // Remove image from relevant states (triggering re-render of images):
@@ -546,7 +586,7 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
                     }
                 )
                 .eq('marker_id', markerId);
-                if (imagesError) console.log("Error: ", imagesError);
+                if (imagesError) console.error("Error: ", imagesError);
 
             const {markersError} = await supabase
                 .from('markers')
@@ -557,7 +597,7 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
                     }
                 )
                 .eq('id', markerId);
-                if (markersError) console.log("Error: ", markersError);
+                if (markersError) console.error("Error: ", markersError);
 
         }
 

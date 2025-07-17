@@ -114,7 +114,7 @@ export async function readPdfFromSupabase(supabase, fileName, folder) {
         .storage
         .from('user-files')
         .download(`${folder}/${fileName}`);
-    if (error) console.log('Download error: ', error);
+    if (error) console.error('Download error: ', error);
     const arrayBuffer = await data.arrayBuffer(); // data is blob, need to convert to UInt8Array
     const uint8Array = new Uint8Array(arrayBuffer);
     return uint8Array;

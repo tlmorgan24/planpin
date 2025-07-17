@@ -62,6 +62,6 @@ export async function getSupabaseImageUri(supabase, fileName, folder) {
     const { data, error } = await supabase.storage
         .from('user-files')
         .createSignedUrl(`${folder}/${fileName}`, 3600); // valid for 1 hour
-    if (error) console.log('Error getting signed URL: ', error);
+    if (error) console.error('Error getting signed URL: ', error);
     return data.signedUrl;
 }
