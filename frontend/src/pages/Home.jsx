@@ -465,8 +465,10 @@ function PDFDeleteButton({fileName}) {
 function SettingsModal() {
 
     const { userId, setUserId } = useContext(UserContext);
-    const { supabase } = useContext(DbContext);
-    const {settingsOpen, setSettingsOpen} = useContext(HomeContext);
+    const { db, supabase } = useContext(DbContext);
+    const { saveDir } = useContext(HomeContext);
+    const { settingsOpen, setSettingsOpen } = useContext(HomeContext);
+    const [loading, setLoading] = useState(false);
 
     function closeSettings() {
         setSettingsOpen(false);
@@ -475,13 +477,17 @@ function SettingsModal() {
         await logOut(supabase, setUserId);
     }
     async function deleteUserAccount() {
-        await deleteAccount(userId, setUserId);
+        setLoading(true);
+        await deleteAccount(supabase, db, userId, setUserId, saveDir);
+        setLoading(false);
     }
 
     return (
         <Modal isOpen={settingsOpen} onRequestClose={closeSettings}>
             <button type="button" onClick={logOutUser}>Log out</button>
-            <button type="button" onClick={deleteUserAccount}>Delete account</button>
+            <button type="button" onClick={deleteUserAccount}>
+                {loading ? <Loading /> : 'Delete account'}
+            </button>
             <button type="button" onClick={closeSettings}>Close</button>
         </Modal>
     );

@@ -3,19 +3,13 @@ import os
 from dotenv import load_dotenv
 from io import BytesIO
 
-# Create supabase client from my URL & API key in environment variables:
-def init_supabase():
+# Create supabase client from my URL & API key in environment variables, and authenticate using JWT token (posted from front end):
+def init_supabase(access_token, refresh_token):
     load_dotenv()
     url = os.getenv('SUPABASE_URL')
     key = os.getenv('SUPABASE_API_KEY')
     supabase = create_client(url, key)
-    # Use credentials of my test user for testing purposes (in future will authenticate by passing JWT from front end with supabase.auth.set_session(token)):
-    supabase.auth.sign_in_with_password(
-        {
-            "email": "abc123@gmail.com",
-            "password": "test1234",
-        }
-    )
+    supabase.auth.set_session(access_token, refresh_token) # authenticate current user with JWT from front end
     return supabase
 
 # Get marker records:
@@ -24,6 +18,7 @@ def get_marker_records(supabase, plan_id):
         supabase.table('user_markers') # view of markers table filtered to authenticated user
         .select('id, reference, category, description, severity, extent')
         .eq('plan_id', plan_id) # filter to only the plan the user is generating the report for
+        .is_('deleted_at', None) # where deleted_at is null (non-deleted records)
         .order('reference') # order alphabetically by reference (so that defects will appear in suitable order in report)
         .execute()
     )
@@ -34,6 +29,7 @@ def get_priority_marker_ids(supabase, plan_id, limit):
         supabase.table('user_markers') # view of markers table filtered to authenticated user
         .select('id')
         .eq('plan_id', plan_id) # filter to only the plan the user is generating the report for
+        .is_('deleted_at', None) # where deleted_at is null (non-deleted records)
         .order('severity', desc=True) # first level of ordering is by severity (so later limit gets most severe defects)
         .order('reference') # second level of ordering is by reference (so logically ordered wihtin each severity level)
         .limit(limit) # e.g. if limit=5, get top 5 defects based on severity
@@ -62,6 +58,7 @@ def get_image_filenames(supabase, marker_id:str):
         supabase.table('user_images') # view of images table filtered to authenticated user
         .select('image_filename')
         .eq('marker_id', marker_id)
+        .is_('deleted_at', None) # where deleted_at is null (non-deleted records)
         .execute()
     )
     records = response.data
@@ -95,8 +92,8 @@ def associate_image_files(supabase, user_id:str, marker_records:list):
 # marker_records: list of dictionaries (one for each record or markers table)
 # priority_marker_records: marker_records filtered to only the top n by severity (where n is the priority_limit input).
 # marker_images: dictionary where keys are marker IDs and each value is a list of associated image objects (which can be passed directly to python-docx add_picture method) 
-def get_data(user_id:str, plan_id:str, priority_limit:int=0):
-    supabase = init_supabase()
+def get_data(access_token:str, refresh_token:str, user_id:str, plan_id:str, priority_limit:int=0):
+    supabase = init_supabase(access_token, refresh_token)
     marker_records = get_marker_records(supabase, plan_id)
     marker_images = associate_image_files(supabase, user_id, marker_records)
     if not priority_limit: 

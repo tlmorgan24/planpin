@@ -1,4 +1,5 @@
 import { useContext, useState } from "react";
+import { Filesystem } from "@capacitor/filesystem";
 import { DbContext, UserContext } from "./main";
 import { AppContext } from "./App";
 import { HomeContext } from "./pages/Home";
@@ -99,7 +100,7 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
 
     if (userId === 'guest') return; // guest account data is never synced
 
-    console.log('Started pushing to cloud for table: ', table);
+    console.log('Starting pushing to cloud for table: ', table);
 
     /*
     We want to get local changes not reflected in cloud database (records updated later than last sync), 
@@ -516,6 +517,8 @@ async function cleanUpLocalDb(db, userId) {
 
     // --- SELECT ---
 
+    // Obtain the records to be deleted:
+
     /*
     To only select records associated with relevant user ID, need to do some joins, as images table only 
     links to user_id through a foreign key chain through markers and plans tables (no direct user_id column):
@@ -564,7 +567,6 @@ async function cleanUpLocalDb(db, userId) {
     // --- DELETE FROM DATABASE ---
 
     // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist. Etc. going up the tree.
-
 
     if (imageIds.length > 0) {
         const imageValuesPlaceholder = imageIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
@@ -616,6 +618,8 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
     if (userId === 'guest') return { imageFileNames: [], pdfFileNames: [] }; // guest account data is never synced
 
     // ------ SELECT ------
+
+    // Obtain the records to be deleted:
 
     // --- IMAGES ---
 
@@ -767,4 +771,185 @@ async function cleanUpCloudFiles(supabase, pdfFileNames, imageFileNames, pdfFold
         .from('user-files')
         .remove([...imageFilePaths, ...pdfFilePaths]); // supabase allows batch deletion of multiple files at once
     if (error) console.error("Error: ", error);
+
+}
+
+
+// -------- WIPE FUNCTIONS --------
+
+/*
+This is like the above clean up functions, but hard deletes absolutely everything belonging to the user 
+(totally wipes all their data, regardless of what has been marked as soft deleted).
+*/
+
+export async function wipeAll(supabase, sqliteDb, userId, saveDir) {
+    await wipeLocalDb(sqliteDb, userId);
+    await wipeLocalFiles(sqliteDb, userId, saveDir);
+    await wipeCloudDb(supabase, userId);
+    await wipeCloudFiles(supabase, userId);
+}
+
+async function wipeLocalDb(db, userId) {
+
+    // --- SELECT ---
+
+    // Obtain the records to be deleted:
+
+    /*
+    To only select records associated with relevant user ID, need to do some joins, as images table only 
+    links to user_id through a foreign key chain through markers and plans tables (no direct user_id column):
+    */
+    const imagesResult = await db.query(`
+        SELECT i.id, i.image_filename
+        FROM images i
+        JOIN markers m ON i.marker_id = m.id
+        JOIN plans p ON m.plan_id = p.id
+        WHERE p.user_id = ?
+    `, [userId]);
+    const imageIds = imagesResult.values.map(row => row['id']);
+    const imageFileNames = imagesResult.values.map(row => row['image_filename']);
+
+    const markersResult = await db.query(`
+        SELECT m.id
+        FROM markers m
+        JOIN plans p ON m.plan_id = p.id
+        WHERE p.user_id = ?
+    `, [userId]);
+    const markerIds = markersResult.values.map(row => row['id']);
+
+    const plansResult = await db.query(`
+        SELECT id, pdf_filename 
+        FROM plans 
+        WHERE user_id = ? 
+    `, [userId]);
+    const planIds = plansResult.values.map(row => row['id']);
+    const pdfFileNames = plansResult.values.map(row => row['pdf_filename']);
+
+    // --- DELETE FROM DATABASE ---
+
+    // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist. Etc. going up the tree.
+
+    if (imageIds.length > 0) {
+        const imageValuesPlaceholder = imageIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
+        await db.run(`
+            DELETE FROM images
+            WHERE id IN (${imageValuesPlaceholder})
+        `, imageIds);
+    }
+
+    if (markerIds.length > 0) {
+        const markerValuesPlaceholder = markerIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
+        await db.run(`
+            DELETE FROM markers
+            WHERE id IN (${markerValuesPlaceholder})
+        `, markerIds);
+    }
+
+    if (planIds.length > 0) {
+        const planValuesPlaceholder = planIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
+        await db.run(`
+            DELETE FROM plans
+            WHERE id IN (${planValuesPlaceholder})
+        `, planIds);
+    }
+
+    return { pdfFileNames, imageFileNames } // for deletion from filesystem
+
+}
+
+async function wipeLocalFiles(db, userId, saveDir) {
+
+    await Filesystem.rmdir({
+        path: userId, // folder to remove
+        directory: saveDir,
+        recursive: true // remove ALL contents of ALL subfolders
+      });
+
+}
+
+async function wipeCloudDb(supabase, userId) {
+
+    if (userId === 'guest') return; // guest account data is never synced
+
+    // ------ SELECT ------
+
+    // Obtain the records to be deleted:
+
+    // --- IMAGES ---
+
+    const { data: imagesData, error: imagesError } = await supabase
+        .from('user_images') // already filtered to current user
+        .select('id');
+    if (imagesError) console.error("Error: ", imagesError);
+    const imageIds = imagesData.map(row => row['id']);
+
+    // --- MARKERS ---
+
+    const { data: markersData, error: markersError } = await supabase
+        .from('user_markers') // already filtered to current user
+        .select('id');
+    if (markersError) console.error("Error: ", markersError);
+    const markerIds = markersData.map(row => row['id']);
+
+    // --- PLANS ---
+
+    const { data: plansData, error: plansError } = await supabase
+        .from('user_plans') // already filtered to current user
+        .select('id');
+    if (plansError) console.error("Error: ", plansError);
+    const planIds = plansData.map(row => row['id']);
+
+
+    // ------ DELETE FROM DATABASE ------
+
+    // Delete the records obtained above from cloud database:
+
+    if (imageIds.length > 0) {
+        const { error } = await supabase
+            .from('images')
+            .delete()
+            .in('id', imageIds);
+        if (error) console.error("Error: ", error);
+    }
+
+    if (markerIds.length > 0) {
+        const { error } = await supabase
+            .from('markers')
+            .delete()
+            .in('id', markerIds);
+        if (error) console.error("Error: ", error);
+    }
+
+    if (planIds.length > 0) {
+        const { error } = await supabase
+            .from('plans')
+            .delete()
+            .in('id', planIds);
+        if (error) console.error("Error: ", error);
+    }
+
+}
+
+async function wipeCloudFiles(supabase, userId) {
+
+    if (userId === 'guest') return; // guest account data is never synced
+
+    const folders = [`${userId}/pdf`, `${userId}/img`];
+    
+    let filePathsToRemove = [];
+    for (const folder of folders) {
+        // Get all files in folder:
+        const { data: listData, error: listError } = await supabase.storage
+            .from('user-files')
+            .list(folder);
+        if (listError) console.error('Error listing files: ', listError);
+        const filePaths = listData.map(file => `${folder}/${file.name}`);
+        filePathsToRemove = [...filePathsToRemove, ...filePaths]
+    }
+
+    const { removeError } = await supabase.storage
+        .from('user-files')
+        .remove(filePathsToRemove); // supabase allows batch deletion of multiple files at once
+    if (removeError) console.error("Error removing files: ", removeError);
+    
 }

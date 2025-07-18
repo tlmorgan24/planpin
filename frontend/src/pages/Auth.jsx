@@ -2,14 +2,14 @@ import { useContext, useState } from "react";
 import { Capacitor } from '@capacitor/core';
 import { DbContext, UserContext } from "../main";
 import { AppContext } from "../App";
-import { fullSync } from "../sync";
+import { fullSync, wipeAll } from "../sync";
 import Modal from "react-modal";
 
 export default function Auth() {
 
     const {db, supabase} = useContext(DbContext); // we are confident db (if mobile) or supabase (if web) exist here, as App.jsx only sends user here if they exist (otherwise sends to loading screen)
     const {setUserId} = useContext(UserContext);
-    const {setPdfFolder, setImageFolder} = useContext(AppContext);
+    const {setPdfFolder, setImageFolder, saveDir} = useContext(AppContext);
 
     const [modalIsOpen, setModalIsOpen] = useState(false);
     const [authType, setAuthType] = useState(null);
@@ -25,7 +25,7 @@ export default function Auth() {
     }
 
     async function continueAsGuest() {
-        setUpUser({userId:'guest', email:null, password:null}, setUserId, setPdfFolder, setImageFolder, db, supabase);
+        setUpUser({userId:'guest', email:null, password:null}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
     }
 
     return(
@@ -44,7 +44,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 
     const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
     const {setUserId} = useContext(UserContext);
-    const {setPdfFolder, setImageFolder} = useContext(AppContext);
+    const {setPdfFolder, setImageFolder, saveDir} = useContext(AppContext);
 
     // Form values:
     const [formValues, setFormValues] = useState({email: '', password: ''}); // initalise to empty string (not null), so React knows this is a controlled component (recommended for form inputs)
@@ -110,7 +110,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
         guarantee a signed-up user already exists in the local database
         */
 
-        setUpUser({userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, db, supabase)
+        setUpUser({userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase)
 
         closeModal();
 
@@ -153,10 +153,12 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 NB: This function is the "single source of truth" for UserContext and AppContext. It is the only piece of code that
 sets the values (apart from saveDir, which is a constant defined in AppProvider):
 */
-async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db, supabase) {
+async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase) {
 
     const platform = Capacitor.getPlatform();
     const { userId, email, password } = object;
+    const pdfFolder = `${userId}/pdf`;
+    const imageFolder = `${userId}/img`;
 
     // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it (either way, if on mobile, sync to make sure up to date with cloud):
     if (platform !== 'web') {
@@ -165,7 +167,7 @@ async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db, su
             VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
             ON CONFLICT(id) DO NOTHING
         `, [userId, email, password]);
-        fullSync(); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile - so below, we won't be creating an updated record due to lack of sync
+        fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile - so below, we won't be creating an updated record due to lack of sync
     }
     else {
         const {error} = await supabase
@@ -186,9 +188,6 @@ async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, db, su
         // note, we do not 'sync' if we are already on the web (using the cloud), as the cloud is itself the source of truth. It is up to the mobile to sync with cloud when necessary
     }
 
-    const pdfFolder = `${userId}/pdf`;
-    const imageFolder = `${userId}/img`;
-
     setUserId(userId);
     setPdfFolder(pdfFolder);
     setImageFolder(imageFolder);
@@ -204,10 +203,40 @@ export async function logOut(supabase, setUserId) {
 
 }
 
-export async function deleteAccount(userId, setUserId) {
+export async function deleteAccount(supabase, sqliteDb, userId, setUserId, saveDir) {
 
-    // HERE, WILL HAVE TO SEND REQUEST TO SERVER, AS ACCOUNT DELETION REQUIRES SERVICE KEY
-
+    await wipeAll(supabase, sqliteDb, userId, saveDir); // delete all data (database records & files) associated with user
+    await deleteUser(userId); // delete user profile itself from Supabase auth (requires service key, hence have to post to server)
     setUserId(undefined);
+
+    async function deleteUser(userId) {
+
+        const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
+        const serverPort = import.meta.env.VITE_SERVER_PORT;
+        const data = {
+            user_id: userId,
+        }
+
+        try {
+
+            const response = await fetch(`http://${serverIp}:${serverPort}/delete_user`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+        
+            const result = await response.json();
+        
+            if (!response.ok) {
+                throw new Error(result.detail || 'Failed to delete user');
+            }
+
+        } catch (error) {
+            console.error("Error deleting user: ", error);
+        }
+
+    }
 
 }

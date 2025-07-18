@@ -1,7 +1,7 @@
 import { createContext, useState, useRef, useContext, useEffect } from "react";
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
-import { HomeButton, NextPageButton, PreviousPageButton, ResetViewButton} from "../plan-buttons";
+import { HomeButton, GenerateReportButton, NextPageButton, PreviousPageButton, ResetViewButton} from "../plan-buttons";
 import { InteractivePage } from "../pdf-render";
 import { MarkerLayer } from "../markers";
 import { readPdf, readPdfFromSupabase, loadPdf } from "../pdf-setup";
@@ -180,7 +180,8 @@ export default function Plan() {
         <PlanProvider>
             <div className="plan-container">
 
-                <HomeButton/>
+                <HomeButton />
+                <GenerateReportButton />
         
                 {/* PDF viewer */}
 
@@ -189,9 +190,9 @@ export default function Plan() {
                 <ResetViewButton/>
                 <br/>
 
-                <PDFViewer pdf={pdf}/>
-                <PreviousPageButton/>
-                <NextPageButton/>
+                <PDFViewer pdf={pdf} />
+                <PreviousPageButton />
+                <NextPageButton />
 
             </div>
         </PlanProvider>
