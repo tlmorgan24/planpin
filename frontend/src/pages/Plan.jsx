@@ -5,7 +5,6 @@ import { HomeButton, GenerateReportButton, NextPageButton, PreviousPageButton, R
 import { InteractivePage } from "../pdf-render";
 import { MarkerLayer } from "../markers";
 import { readPdf, readPdfFromSupabase, loadPdf } from "../pdf-setup";
-import { AppContext } from "../App";
 import { DbContext, UserContext } from "../main";
 
 
@@ -149,7 +148,7 @@ function PlanProvider({children}) {
 export default function Plan() {
 
     // Get pdf file:
-    const {pdfFolder, saveDir} = useContext(AppContext);
+    const {pdfFolder, saveDir} = useContext(UserContext);
     const {supabase} = useContext(DbContext);
     const location = useLocation();
     const params = new URLSearchParams(location.search);

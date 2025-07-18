@@ -5,7 +5,6 @@ import { DbContext, UserContext } from "./main";
 import { PlanContext } from "./pages/Plan"; // to access context variables
 import { useNavigate } from "react-router-dom";
 import { saveFile } from "./pdf-setup";
-import { AppContext } from "./App";
 import { Capacitor } from "@capacitor/core";
 import Loading from "./pages/Loading";
 
@@ -26,9 +25,8 @@ export function HomeButton() {
 
 export function GenerateReportButton() {
 
-    const {userId} = useContext(UserContext);
+    const {userId, saveDir} = useContext(UserContext);
     const {supabase} = useContext(DbContext);
-    const {saveDir} = useContext(AppContext);
     const {planId} = useContext(PlanContext);
     const [loading, setLoading] = useState(false);
 

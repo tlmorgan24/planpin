@@ -1,7 +1,6 @@
 import { useContext, useState } from "react";
 import { Filesystem } from "@capacitor/filesystem";
 import { DbContext, UserContext } from "./main";
-import { AppContext } from "./App";
 import { HomeContext } from "./pages/Home";
 import { getFilenames, saveFile, readAsBlob, removeFile } from "./pdf-setup";
 import Loading from "./pages/Loading";
@@ -25,8 +24,7 @@ it can simple pull all columns of the cloud database (as all columns in cloud ex
 export function SyncButton() {
 
     const {db: sqliteDb, supabase} = useContext(DbContext);
-    const {userId} = useContext(UserContext);
-    const {pdfFolder, imageFolder, saveDir} = useContext(AppContext);
+    const {userId, pdfFolder, imageFolder, saveDir} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
     const [loading, setLoading] = useState(false); // we will make button say "Sync" if false; show loading icon otherwise
 

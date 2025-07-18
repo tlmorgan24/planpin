@@ -1,8 +1,7 @@
 import { forwardRef, useContext, useState, useEffect } from "react";
 import { Capacitor } from '@capacitor/core';
 import { PlanContext } from "./pages/Plan";
-import { AppContext } from "./App";
-import { DbContext } from "./main";
+import { DbContext, UserContext } from "./main";
 import Modal from 'react-modal';
 import { captureImage, saveImage, getImageUri, getSupabaseImageUri } from "./image-setup";
 import Loading from "./pages/Loading";
@@ -100,7 +99,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
     */
 
-    const {saveDir, imageFolder} = useContext(AppContext);
+    const {saveDir, imageFolder} = useContext(UserContext);
 
     const [imageIds, setImageIds] = useState([]); // will be array of file names for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
     const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imageFileNames

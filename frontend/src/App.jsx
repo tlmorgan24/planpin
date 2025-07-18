@@ -1,65 +1,45 @@
-import { createContext, useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Directory } from '@capacitor/filesystem';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { UserContext, DbContext } from './main';
+import { setUpUser } from './pages/Auth';
 import Home from './pages/Home';
 import Plan from './pages/Plan';
 import Auth from './pages/Auth';
 import Loading from './pages/Loading';
-
-// -- CONTEXT VARIABLES --
-
-// Define context object:
-export const AppContext = createContext();
-
-// Define context provider:
-function AppProvider({children}) {
-
-    let saveDirectory = null;
-    if (Capacitor.getPlatform() !== 'web') {
-        saveDirectory = Directory.Documents;
-    }
-
-  	const [saveDir, setSaveDir] = useState(saveDirectory); // root directory of local Filesystem to save/load PDFs and images to/from (null if on web; will save/load directly to Supabase user-files bucket)
-    const [pdfFolder, setPdfFolder] = useState(undefined); // path from saveDir to folder in/from which to save/load PDFs
-    const [imageFolder, setImageFolder] = useState(undefined); // path from saveDir to folder in/from which to save/load images
-
-    /* 
-    Each user will have their own folder, with one subfolder for PDFs and another for images. If no user is 
-    signed in (chooses to continue as guest), the PDF and image folders be nested in a "guest" folder 
-    (because userId is set to "guest").
-    */
-
-    // Values will be set on login within Auth.jsx (Auth.jsx is single source of truth for userId, pdfFolder and imageFolder).
-  	
-	return (
-    	<AppContext.Provider value={{
-      		saveDir, setSaveDir,
-            pdfFolder, setPdfFolder,
-            imageFolder, setImageFolder,
-    	}}>
-      	{children}
-    	</AppContext.Provider>
-  	);
-}
-
 
 // -- APP --
 
 export default function App() {
 
     const {db, supabase} = useContext(DbContext);
-    const {userId} = useContext(UserContext);
-    const platform = Capacitor.getPlatform();
-    if ((platform !== 'web' && !db) || (platform === 'web' && !supabase)) return <Loading />; // make sure we wait for SQLite or Supabase database clients to initialise, if on mobile/web, respectively.
-    if (userId === undefined) { // user has neither signed in, nor chosen to continue as guest yet. Must take them to login screen.
+    const {userId, setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
+    const [checkedSession, setCheckedSession] = useState(false); // so that nothing will be rendered until we have checked for any previously saved session
+
+    // Check for previously saved session:
+    useEffect(() => {
+        async function func() {
+            if (!supabase) return;
+            const {data, error} = await supabase.auth.getSession();
+            if (error) console.error("Error: ", error);
+            if (data && data.session) { // previously saved session, so just have to set up user directly from this, and can continue to usual Home screen (below)
+
+                const object = {userId: data.session.user.id, email:data.session.user.email, password:''} // note, email and password don't matter anyway, as we won't be inserting a new record, as we know user already exists
+                await setUpUser(object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
+                // ^ as part of this, user ID will be set to saved defined value, so will bypass authentication screen
+            }
+            // Else, no previously saved session, so leave userId as-is (undefined); will take user to authentication screen
+            setCheckedSession(true);
+        }
+        func();
+    }, [supabase])
+
+    if (!checkedSession || !supabase || (Capacitor.getPlatform() !== 'web' && !db)) return <Loading />; // make sure we wait for SQLite or Supabase database clients to initialise (both required for mobile app; only Supabase required for web).
+    if (userId === undefined) { // user has neither signed in, nor chosen to continue as guest yet. Check to see if there is previously saved session, otherwise take them to login screen.
         return(
-            <AppProvider>
-                <Auth /> {/* still wrap in AppProvider, as Auth screen requires AppContext to set pdfFolder etc. based off obtained userId */}
-            </AppProvider>
+            <Auth />
         );
-    } 
+    }
     /* 
     Within Auth component, I will update state of userId (using setUserId) once user logs in.
     If user chooses to continue as guest, will set userId to "guest". I will also add record of user to "users" 
@@ -68,13 +48,11 @@ export default function App() {
     */
 
 	return (
-        <AppProvider>
-            <BrowserRouter>
-                <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/plan" element={<Plan />} />
-                </Routes>
-            </BrowserRouter>
-        </AppProvider>
+        <BrowserRouter>
+            <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/plan" element={<Plan />} />
+            </Routes>
+        </BrowserRouter>
 	);
 }

@@ -1,15 +1,13 @@
 import { useContext, useState } from "react";
 import { Capacitor } from '@capacitor/core';
 import { DbContext, UserContext } from "../main";
-import { AppContext } from "../App";
 import { fullSync, wipeAll } from "../sync";
 import Modal from "react-modal";
 
 export default function Auth() {
 
     const {db, supabase} = useContext(DbContext); // we are confident db (if mobile) or supabase (if web) exist here, as App.jsx only sends user here if they exist (otherwise sends to loading screen)
-    const {setUserId} = useContext(UserContext);
-    const {setPdfFolder, setImageFolder, saveDir} = useContext(AppContext);
+    const {setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
 
     const [modalIsOpen, setModalIsOpen] = useState(false);
     const [authType, setAuthType] = useState(null);
@@ -43,8 +41,7 @@ export default function Auth() {
 function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 
     const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
-    const {setUserId} = useContext(UserContext);
-    const {setPdfFolder, setImageFolder, saveDir} = useContext(AppContext);
+    const {setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
 
     // Form values:
     const [formValues, setFormValues] = useState({email: '', password: ''}); // initalise to empty string (not null), so React knows this is a controlled component (recommended for form inputs)
@@ -150,10 +147,10 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 }
 
 /*
-NB: This function is the "single source of truth" for UserContext and AppContext. It is the only piece of code that
-sets the values (apart from saveDir, which is a constant defined in AppProvider):
+NB: This function is the "single source of truth" for UserContext. It is the only piece of code that
+sets the values (apart from saveDir, which is a constant defined immediately in UserContext):
 */
-async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase) {
+export async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase) {
 
     const platform = Capacitor.getPlatform();
     const { userId, email, password } = object;

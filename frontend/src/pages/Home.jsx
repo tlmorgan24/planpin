@@ -4,7 +4,6 @@ import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
 import { PageCanvas } from "../pdf-render";
 import { getPdfObjects, saveFile } from '../pdf-setup';
-import { AppContext } from '../App';
 import { DbContext, UserContext } from "../main";
 import { SyncButton, saveBlobToSupabase } from "../sync";
 import Loading from "./Loading";
@@ -21,22 +20,22 @@ export const HomeContext = createContext();
 // Define context provider:
 function HomeProvider({children}) {
 
-    const {userId} = useContext(UserContext);
+    const {userId, pdfFolder, saveDir} = useContext(UserContext);
     const {db, supabase} = useContext(DbContext);
-    const {pdfFolder, saveDir} = useContext(AppContext);
     const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
     const [loadingPdfObjects, setLoadingPdfObjects] = useState(false); // to allow loading icon to show when PDF objects are being fetched
     const [settingsOpen, setSettingsOpen] = useState(false); // to allow settings modal to pop out when desired
 
     async function refreshPdfObjects() {
 
+        console.log(userId);
+
         setLoadingPdfObjects(true);
 
-        if (pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
+        if ( userId === undefined || pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
 
         let plansResultRows = [];
-        const platform = Capacitor.getPlatform();
-        if (platform !== 'web') {
+        if (Capacitor.getPlatform() !== 'web') {
             if (!db || !saveDir) return; 
             const plansResult = await db.query(
                 `
@@ -136,8 +135,7 @@ function SettingsButton() {
 function PDFInput() {
 
     const {db, supabase} = useContext(DbContext);
-    const {userId} = useContext(UserContext);
-    const {pdfFolder, saveDir} = useContext(AppContext);
+    const {userId, pdfFolder, saveDir} = useContext(UserContext);
     const {refreshPdfObjects, loadingPdfObjects, setLoadingPdfObjects} = useContext(HomeContext);
     const [uploadMessage, setUploadMessage] = useState(null);
     
