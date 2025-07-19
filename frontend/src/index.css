@@ -207,7 +207,7 @@ markerLayer fill entirety of pageCanvas.
   border-radius: 5px;
 }
 
-.defect-image-container button {
+.defect-image-container button, .thumbnail button {
   position: absolute;
   margin-bottom: 5px; /* position 5px above bottom of containing block's padding */ 
   bottom: 0;
