@@ -452,7 +452,7 @@ function PDFDeleteButton({fileName}) {
     }
 
     return(
-        <button type="button" className="delete-button" onClick={handleClick}>Delete</button>
+        <button type="button" className="bad" onClick={handleClick}>Delete</button>
     );
 
 }
