@@ -1,9 +1,5 @@
 {
   "appId": "com.tm.doverreactapp",
   "appName": "dover-react-app",
-  "webDir": "dist",
-  "ios": {
-    "contentInset": "always",
-    "backgroundColor": "#2d2d2d"
-  }
+  "webDir": "dist"
 }

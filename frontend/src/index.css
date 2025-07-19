@@ -4,7 +4,7 @@
   --secondary-color: #565656;
   --accent-color: #e67e22;
   --text-color: #fefefe;
-  --body-margin: 8px; /* 8px is already default value for body margin, but just in case I want to easily change it later */
+  --body-margin: 8px; /* will not apply this margin directly to body element (due to special case of body margin causing parent to push out); instead, will apply to parent safe-area-container */
   /* Set usable width and height within body content, such that whole viewport is spanned with no scrolling required: */
   --usable-width: calc(100vw - 2 * var(--body-margin));
   --usable-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--body-margin));
@@ -18,11 +18,22 @@ If content-box (default) was used instead of border-box, then padding etc. would
   box-sizing: border-box;
 }
 
+.safe-area-container {
+  padding-top: calc(env(safe-area-inset-top) + var(--body-margin));
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--body-margin));
+  padding-left: var(--body-margin);
+  padding-right: var(--body-margin);
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+}
 
-body {
+
+html, body {
+  padding: 0;
+  margin: 0; /* note, our intended "body margin" is applied to safe-area-container instead of body itself */ 
   background-color: var(--primary-color);
   color: var(--text-color);
-  margin: var(--body-margin);
 }
 
 
@@ -41,8 +52,10 @@ markerLayer fill entirety of pageCanvas.
   position: relative; /* set to relative to allow it to be a containing block for children (particularly page buttons) */
   width: var(--usable-width);
   height: var(--usable-height);
+  margin: 0;
   display: flex;
   flex-direction: column;
+  overflow: auto;
 }
 
 .page-container {
@@ -80,6 +93,8 @@ markerLayer fill entirety of pageCanvas.
   position: relative; /* set to relative to allow it to be a containing block for children */
   width: var(--usable-width);
   height: var(--usable-height);
+  margin: 0;
+  overflow: auto;
 }
 
 .thumbnails-container {

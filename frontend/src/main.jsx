@@ -80,6 +80,13 @@ function DbProvider({children}) {
     );
 }
 
+// -- SAFE AREA (to avoid notch etc.) --
+
+export const SafeAreaContainer = ({ children }) => (
+    <div className="safe-area-container">
+      {children}
+    </div>
+  );
 
 // -- APP --
 Modal.setAppElement('#root'); // so any modals in the app can properly hide non-modal part of app from screen readers when modal open
@@ -87,7 +94,9 @@ createRoot(document.getElementById('root')).render(
     <StrictMode>
         <UserProvider>
             <DbProvider>
-                <App />
+                <SafeAreaContainer>
+                    <App />
+                </SafeAreaContainer>
             </DbProvider>
         </UserProvider>
     </StrictMode>,

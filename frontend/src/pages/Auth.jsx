@@ -28,9 +28,9 @@ export default function Auth() {
 
     return(
         <div className="auth-container">
-            <button onClick={signUp} style={{position: 'relative', top: '100px'}}>Sign up</button>
-            <button onClick={logIn} style={{position: 'relative', top: '100px'}}>Log in</button>
-            <button onClick={continueAsGuest} style={{position: 'relative', top: '100px'}}>Continue as guest</button>
+            <button onClick={signUp}>Sign up</button>
+            <button onClick={logIn}>Log in</button>
+            <button onClick={continueAsGuest}>Continue as guest</button>
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
     );
