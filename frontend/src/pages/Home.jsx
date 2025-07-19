@@ -1,5 +1,6 @@
 import { useContext, useState, useRef, useEffect, createContext } from "react";
 import Modal from 'react-modal';
+import ConfirmModal from "../ConfirmModal";
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
@@ -57,7 +58,7 @@ function HomeProvider({children}) {
         const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter, supabase); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
         setPdfObjects(pdfObjects);
         
-        toast.success("Refreshed plans", { id: 'loading' }); // must match ID of loading toast, to remove that loading toast
+        toast.success("Plans loaded", { id: 'loading' }); // must match ID of loading toast, to remove that loading toast
 
     };
 
@@ -90,7 +91,6 @@ export default function Home() {
                     <h1>My Plans</h1>
                     <RefreshPlansButton />
                     <SettingsButton />
-                    <SettingsModal />
                 </div>
                 <Plans/>
                 {/* 
@@ -98,6 +98,7 @@ export default function Home() {
                 We will apply common styling to it as other thumbnails, making it fit nicely in the layout so that
                 the input button, with its location/sizing, is showing you exactly where the added PDF will go.
                 */}
+                <SettingsModal />
             </div>
         </HomeProvider>
     );
@@ -136,7 +137,7 @@ function PDFInput() {
 
         e.preventDefault();
         if (pdfFolder === undefined) return;
-        toast.loading("Loading...", { id: 'loading' });
+        toast.loading("Loading...", { id: 'uploading' });
 
         const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
 
@@ -144,10 +145,8 @@ function PDFInput() {
         const file = e.target.files[0]; // as we are not using a form, e.target is the file input itself, not the form. So, we do e.target instead of e.target.elements["file-input"]
         
         if (file && file.type === 'application/pdf') { // file verified to be valid, hence save
-
-            const platform = Capacitor.getPlatform();
             
-            if (platform !== 'web') {
+            if (Capacitor.getPlatform() !== 'web') {
                 // Save to file system:
                 const fileName = await saveFile(file, pdfFolder, saveDir);
                 // Add to database table:
@@ -176,13 +175,13 @@ function PDFInput() {
                 if (error) console.error('Error inserting plan: ', error);
             }
 
+            toast.success("Plan uploaded", { id: 'uploading' });
             await refreshPdfObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
-            // Note, success toast is displayed at end of refreshPdfObjects, so we are not displaying one here
         
         } else if (file) {
-            toast.error('The file must be a .pdf file.', { id: 'loading' }); // same ID as loading toast, to remove that loading toast
+            toast.error('The file must be a .pdf file.', { id: 'uploading' }); // same ID as loading toast, to remove that loading toast
         } else {
-            toast.error('Please upload a file.', { id: 'loading' }); // same ID as loading toast, to remove that loading toast
+            toast.error('Please upload a file.', { id: 'uploading' }); // same ID as loading toast, to remove that loading toast
         }
         
     };
@@ -283,13 +282,15 @@ function PDFDeleteButton({fileName}) {
     const {userId} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
 
-    async function handleClick() {
+    const [showConfirm, setShowConfirm] = useState(false); // to allow confirmation modal to be shown before deleting a plan
+    const confirmationMessage = 'If you proceed, this plan and all its associated data (including images and defect information) will be permanently deleted.'
 
-        toast.loading("Loading...", { id: 'loading' });
+    async function deletePlan() {
 
-        const platform = Capacitor.getPlatform();
+        setShowConfirm(false);
+        toast.loading("Deleting...", { id: 'deleting' });
             
-        if (platform !== 'web') {
+        if (Capacitor.getPlatform() !== 'web') {
 
             if (!db) return;
 
@@ -422,13 +423,22 @@ function PDFDeleteButton({fileName}) {
         
         // Note we are not hard-deleting the files from storage here, as that happens as part of separate clean-up function (see sync.jsx)
 
+        toast.success("Plan deleted", { id: 'deleting' });
         await refreshPdfObjects();
-        // Note, success toast is displayed at end of refreshPdfObjects, so we are not displaying one here
 
     }
 
+    function onRequestDelete() {
+        setShowConfirm(true); // when user clicks "Delete" button, show confirmation modal
+    }
+    function onCancelDelete() {
+        setShowConfirm(false);
+    }
     return(
-        <button type="button" className="bad" onClick={handleClick}>Delete</button>
+        <>
+            <button type="button" className="bad" onClick={onRequestDelete}>Delete</button>
+            <ConfirmModal message={confirmationMessage} isOpen={showConfirm} onConfirm={deletePlan} onCancel={onCancelDelete}/>
+        </>
     );
 
 }
@@ -443,6 +453,9 @@ function SettingsModal() {
     const { saveDir } = useContext(HomeContext);
     const { settingsOpen, setSettingsOpen } = useContext(HomeContext);
 
+    const [showConfirm, setShowConfirm] = useState(false); // to allow confirmation modal to be shown before deleting account
+    const confirmationMessage = 'If you proceed, your account and all its associated data (including PDFs, images and defect information) will be permanently deleted. This action is immediate and irreversible.'
+
     function closeSettings() {
         setSettingsOpen(false);
     }
@@ -450,16 +463,29 @@ function SettingsModal() {
         await logOut(supabase, setUserId);
     }
     async function deleteUserAccount() {
+        setShowConfirm(false);
         await deleteAccount(supabase, db, userId, setUserId, saveDir);
     }
 
+    function onRequestDelete() {
+        setShowConfirm(true); // when user clicks "Delete account" button, show confirmation modal
+    }
+    function onCancelDelete() {
+        setShowConfirm(false);
+    }
+
     return (
-        <Modal className="settings-modal" isOpen={settingsOpen} onRequestClose={closeSettings}>
+        <Modal className="side-modal" isOpen={settingsOpen} onRequestClose={closeSettings}>
             <div className="big-buttons-container">
                 <button type="button" onClick={logOutUser}>Log out</button>
                 <button type="button" onClick={closeSettings}>Close</button>
-                <button type="button" className="bad" onClick={deleteUserAccount}>Delete account</button>
+                <button type="button" className="bad" onClick={onRequestDelete}>Delete account</button>
             </div>
+            {/* 
+            When user clicks "Delete account" button, we show confirmation modal. 
+            If user THEN clicks confirm on the confirmation modal, we proceed to delete the account.
+            */}
+            <ConfirmModal message={confirmationMessage} isOpen={showConfirm} onConfirm={deleteUserAccount} onCancel={onCancelDelete}/>
         </Modal>
     );
 }

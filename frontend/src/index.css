@@ -36,6 +36,7 @@ If content-box (default) was used instead of border-box, then padding etc. would
 }
 
 .safe-area-container {
+  position: relative; /* to allow children to use % units, e.g. width: 100% */
   padding-top: calc(env(safe-area-inset-top) + var(--body-margin));
   padding-bottom: calc(env(safe-area-inset-bottom) + var(--body-margin));
   padding-left: var(--body-margin);
@@ -68,8 +69,8 @@ markerLayer fill entirety of pageCanvas.
 .plan-container {
   position: relative; /* set to relative to allow it to be a containing block for children (particularly page buttons) */
   overflow-y: auto;
-  width: var(--usable-width);
-  height: var(--usable-height);
+  width: 100%; /* 100% of safe-area-container, which is its containing block */
+  height: 100%;
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -114,8 +115,8 @@ markerLayer fill entirety of pageCanvas.
 .home-container {
   position: relative; /* set to relative to allow it to be a containing block for children */
   overflow-y: auto;
-  width: var(--usable-width);
-  height: var(--usable-height);
+  width: 100%;
+  height: 100%;
   margin: 0;
 }
 
@@ -159,8 +160,8 @@ markerLayer fill entirety of pageCanvas.
 .auth-container {
   position: relative; /* set to relative to allow it to be a containing block for children */
   overflow-y: auto;
-  width: var(--usable-width);
-  height: var(--usable-height);
+  width: 100%;
+  height: 100%;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -170,26 +171,38 @@ markerLayer fill entirety of pageCanvas.
 
 /* Modals */
 
-/* FormModal, used on Plan page for adding/editing marker information: */
-.form-modal, .settings-modal, .auth-modal {
+.centre-modal, .side-modal {
+  /* Note, here we provide basic properties only, with specifics for centre vs side positioning covered separately afterwards */
   position: fixed;
-  bottom: 0; /* bottom of modal is always at bottom of viewport */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 600px;
-  max-width: var(--usable-width);
-  max-height: calc(var(--usable-height) * 0.8); /* modal will grow upwards based on size of content, up to this limit ... */
-  overflow: auto; /* ... at which point scrolling is activated */
+  overflow: auto;
+  width: 500px;
+  max-width: var(--usable-width); /* need to use this variable instead of 100%, as not all modals have safe-area-container (or container of same size) as containing block; some are more deeply nested */
   padding: 20px;
-  padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* bottom padding increased so content avoids bottom safe area */
+  text-align: center;
   background-color: var(--primary-color);
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  border-bottom-left-radius: 0;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.centre-modal {
+  left: calc(var(--usable-width)/2);
+  top: calc(var(--usable-height)/2);
+  transform: translate(-50%, -50%);
+}
+
+.side-modal {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  padding-top: calc(20px + env(safe-area-inset-top)); /* top padding increased so content avoids top safe area */
+  padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* bottom padding increased so content avoids bottom safe area */
+  border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 
-.form-modal form, .auth-modal form {
+.side-modal form, .centre-modal form {
   position: relative;
   width: 100%;
   display: flex;
@@ -219,11 +232,12 @@ markerLayer fill entirety of pageCanvas.
   transform: translateX(-50%);
 }
 
-/* Form items (used in Plan page modal for marker information): */
+/* Form items (used in Plan page modal for marker information, and Auth modal for authentication): */
 
 .form-item {
   width: 600px;
   max-width: 100%;
+  text-align: left; /* to overwrite "center", which I have set as the default for modals above (noting text-align is an inherited property) */
   background-color: var(--secondary-color);
   border: 1px solid var(--secondary-color);
   border-radius: 10px;
@@ -244,9 +258,10 @@ markerLayer fill entirety of pageCanvas.
   flex-shrink: 0;
 }
 
-.form-item input {
+.form-item input, .form-item textarea {
   min-width: 150px;
-  padding: 8px;
+  height: 2.5rem;
+  padding: 0.5rem;
   font-size: 1rem; /* provided rem is at least 16px, will prevent iOS' automatic zoom-in to view small form text */
   /* Invert the usual text and background colours, making the input box stand out: */
   color: var(--primary-color);
@@ -256,6 +271,7 @@ markerLayer fill entirety of pageCanvas.
   border-bottom-right-radius: inherit;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+  resize: none; /* only affects textarea; prevents user from manually resizing area */
   flex-grow: 1; /* input fills entire width left over after label */
 }
 

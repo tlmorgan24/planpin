@@ -126,7 +126,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
     };
 
     return(
-        <Modal className="auth-modal" isOpen={modalIsOpen} onRequestClose={closeModal}>
+        <Modal className="centre-modal" isOpen={modalIsOpen} onRequestClose={closeModal}>
             
             <form onSubmit={handleSubmit}>
 
@@ -201,12 +201,14 @@ export async function setUpUser(object, setUserId, setPdfFolder, setImageFolder,
 
 export async function logOut(supabase, setUserId) {
 
+    toast.loading('Logging out...', {id: 'log-out'});
+
     const { error } = await supabase.auth.signOut();
     if (error) console.error('Error signing out: ', error.message);
 
     setUserId(undefined);
 
-    toast.success('Logged out!');
+    toast.success('Logged out', {id: 'log-out'});
 
 }
 

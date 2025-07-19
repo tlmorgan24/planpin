@@ -1,4 +1,4 @@
-import { forwardRef, useContext, useState, useEffect } from "react";
+import { forwardRef, useContext, useState, useEffect, useRef } from "react";
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { PlanContext } from "./pages/Plan";
@@ -6,6 +6,7 @@ import { DbContext, UserContext } from "./main";
 import Modal from 'react-modal';
 import { captureImage, saveImage, getImageUri, getSupabaseImageUri } from "./image-setup";
 import Loading from "./pages/Loading";
+import ConfirmModal from "./ConfirmModal";
 
 // ---- MARKER COMPONENT ----
 
@@ -108,6 +109,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
     const [loading, setLoading] = useState(false); // to allow modal to show a loading icon when this is set to true (note we opt for manual loading instead of just a toast, so that we can prevent the user seeing & interacting with the form modal while it is loading/submitting)
     const [imagesToLoad, setImagesToLoad] = useState(0); // number of images remaining to load before we can set loading to false (will be set to number of imageUris)
+
+    const textAreaRef = useRef(null); // HTML textarea element used for description (we have to useRef to enable auto-resizing as part of handleTextAreaChange below)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
     const [formValues, setFormValues] = useState({reference: '', category: '', description: '', severity: '', extent: ''});
@@ -269,8 +272,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     }
 
     async function onAddPhoto() {
-        toast.loading("Adding image...", {id: 'loading'});
         const image = await captureImage(); // image object is as saved from Camera.getPhoto
+        toast.loading("Adding image...", {id: 'loading'}); // this toast must come AFTER captureImage, because otherwise, if user cancels image capture, loading toast will persist
         setNewImages(prev => [...prev, image]); // add new image to newImages array
         toast.success("Image added", {id: 'loading'});
     }
@@ -391,8 +394,18 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         setFormValues((prevState) => ({ ...prevState, [name]: value }));
     };
 
+    // Have to manually resize text area to enable dynamic size change based on length of user input
+    function handleTextAreaChange(event) {
+        if (textAreaRef.current) {
+            // Assuming 2.5rem is the desired minimum height of textarea (at time of writing, this matches the height of the normal input elements)
+            textAreaRef.current.style.height = '2.5rem';
+            textAreaRef.current.style.height = `max(${textAreaRef.current.scrollHeight}px, 2.5rem)`; // Adjust height to content
+          }
+        handleFormChange(event);
+    };
+
     return(
-        <Modal className="form-modal" isOpen={isOpen} onRequestClose={onRequestClose} >
+        <Modal className="side-modal" isOpen={isOpen} onRequestClose={onRequestClose} >
 
             {/* 
             If loading, we show the loading screen and set the form to hidden. By setting it to hidden,
@@ -408,10 +421,6 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             <form onSubmit={handleSubmit} style={ loading ? {position: 'fixed', top: '200vh', visibility: 'hidden'} : {} } > {/* properties left as defaults defined in index.css if not loading */}
 
-                <div className="big-buttons-container">
-                    <button type="button" className="accented" onClick={onAddPhoto}>Add image</button>
-                </div>
-
                 {/* Defect reference, e.g. "#001": */}
                 <div className="form-item">
                     <label htmlFor="reference">Reference</label>
@@ -424,10 +433,10 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     <input id="category" name="category" type="text" value={formValues.category} onChange={handleFormChange} />
                 </div>
 
-                {/* Brief description of defect, e.g. "2mm horizontal crack to internal wall": */}
+                {/* Brief description of defect, e.g. "2mm horizontal crack to internal wall" (uses textarea instead of input, to allow spilling over multiple lines): */}
                 <div className="form-item">
                     <label htmlFor="description">Description</label>
-                    <input id="description" name="description" type="text" value={formValues.description} onChange={handleFormChange} />
+                    <textarea ref={textAreaRef} id="description" name="description" value={formValues.description} onChange={handleTextAreaChange} />
                 </div>
                 
                 {/* Severity of defect, 0-5 (0 being no defect; 5 being failure): */}
@@ -459,6 +468,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 ))}
 
                 <div className="big-buttons-container">
+                    <button type="button" className="accented" onClick={onAddPhoto}>Add image</button>
                     <button type="submit" className="accented">Submit</button>
                     <button type="button" onClick={onRequestClose}>Cancel</button>
                     <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
@@ -475,15 +485,16 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
 
     const {db, supabase} = useContext(DbContext);
+    const [showConfirm, setShowConfirm] = useState(false); // to allow confirmation modal to be shown before deleting
 
-    async function handleClick() {
+    async function deleteImage() {
 
-        toast.loading("Deleting image...", {id: 'loading'});
+        setShowConfirm(false);
+        toast.loading("Deleting image...", {id: 'deleting'});
 
         const imageId = imageIds[index];
-        const platform = Capacitor.getPlatform();
 
-        if (platform !== 'web') { // on mobile
+        if (Capacitor.getPlatform() !== 'web') { // on mobile
             await db.run(
                 `
                     UPDATE images 
@@ -511,12 +522,22 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
         setImageIds(prev => prev.filter((_, i) => i !== index)); // sets imageIds to new array with same items as previous array, except without item at specified index
         setImageUris(prev => prev.filter((_, i) => i !== index));
 
-        toast.success("Image removed", {id: 'loading'});
+        toast.success("Image deleted", {id: 'deleting'});
 
     }
 
+    function onRequestDelete() {
+        setShowConfirm(true); // when user clicks "Delete" button, show confirmation modal
+    }
+    function onCancelDelete() {
+        setShowConfirm(false);
+    }
+
     return(
-        <button type="button" className="bad" onClick={handleClick}>Delete image</button>
+        <>
+            <button type="button" className="bad" onClick={onRequestDelete}>Delete image</button>
+            <ConfirmModal isOpen={showConfirm} onConfirm={deleteImage} onCancel={onCancelDelete}/>
+        </>
     );
 
 }
@@ -525,9 +546,10 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
 function NewImageDeleteButton({index, setNewImages}) {
 
     async function handleClick() {
+        toast.loading("Removing image...", {id: 'deleting'});
         // Remove image from newImages state (triggering re-render of images):
         setNewImages(prev => prev.filter((_, i) => i !== index)); // sets newImages to new array with same items as previous array, except without item at specified index
-        toast.success("Image removed");
+        toast.success("Image removed", {id: 'deleting'});
     }
 
     return(
@@ -542,6 +564,7 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
     const {db, supabase} = useContext(DbContext);
 
     const [display, setDisplay] = useState('none');
+    const [showConfirm, setShowConfirm] = useState(false); // to allow confirmation modal to be shown before deleting
 
     useEffect(() => {
         if (markerInDb) {
@@ -552,17 +575,16 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
         }
     }, [markerId, markerInDb]);
 
-    async function handleClick() {
+    async function deleteMarker() {
         
         // Even though ON DELETE CASCADE is already set up in database, only works for hard deletion, so for soft-deletion, need to manually get the images associated with the deleted marker:
         // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
         // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
         
-        toast.loading("Deleting marker...", {id: 'loading'});
+        setShowConfirm(false);
+        toast.loading("Deleting marker...", {id: 'deleting'});
 
-        const platform = Capacitor.getPlatform();
-
-        if (platform !== 'web') { // on mobile
+        if (Capacitor.getPlatform() !== 'web') { // on mobile
 
             await db.run(
                 `
@@ -613,13 +635,23 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
         }
 
         setClickLocations(prev => prev.filter(loc => loc.id !== markerId)); // visually erase marker
-        toast.success("Marker deleted", {id: 'loading'});
+        toast.success("Marker deleted", {id: 'deleting'});
         closeModal();
 
     }
+
+    function onRequestDelete() {
+        setShowConfirm(true); // when user clicks "Delete" button, show confirmation modal
+    }
+    function onCancelDelete() {
+        setShowConfirm(false);
+    }
  
     return(
-        <button type="button" className="bad" onClick={handleClick} style={{display: display}}>Delete marker</button>
+        <>
+            <button type="button" className="bad" onClick={onRequestDelete} style={{display: display}}>Delete marker</button>
+            <ConfirmModal isOpen={showConfirm} onConfirm={deleteMarker} onCancel={onCancelDelete}/>
+        </>
     );
 
 }
