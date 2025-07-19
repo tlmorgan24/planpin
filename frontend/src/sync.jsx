@@ -1,9 +1,9 @@
 import { useContext, useState } from "react";
+import { toast } from 'sonner';
 import { Filesystem } from "@capacitor/filesystem";
 import { DbContext, UserContext } from "./main";
 import { HomeContext } from "./pages/Home";
 import { getFilenames, saveFile, readAsBlob, removeFile } from "./pdf-setup";
-import Loading from "./pages/Loading";
 
 /*
 NOTE: a synced_at column exists in each local table to mean record-wise "last PUSHED TO cloud".
@@ -26,10 +26,9 @@ export function SyncButton() {
     const {db: sqliteDb, supabase} = useContext(DbContext);
     const {userId, pdfFolder, imageFolder, saveDir} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
-    const [loading, setLoading] = useState(false); // we will make button say "Sync" if false; show loading icon otherwise
 
     async function handleClick() {
-        setLoading(true);
+        toast.loading("Syncing...", {id: 'syncing'});
         if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined) return;
         console.log("Sync clicked.")
         console.log("Current local users table: ", await sqliteDb.query('SELECT * FROM users'));
@@ -45,17 +44,18 @@ export function SyncButton() {
         }
         else {
             if (!supabase) return;
-            await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
+            try {
+                await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
+                toast.success('Sync complete!', {id: 'syncing'});
+            } catch {
+                toast.error('Something went wrong while syncing', {id: 'syncing'});
+            }
             await refreshPdfObjects();
         }
-        setLoading(false);
     }
 
     return(
-        <button type="button" onClick={handleClick}>
-            {loading ? <Loading /> : "Sync"}
-            {/* ^ make inside of button show Loading icon if sync is underway; otherwise say "Sync" to invite user to begin the sync */}
-        </button>
+        <button type="button" onClick={handleClick}>Sync</button>
     );
 
 }
@@ -82,6 +82,7 @@ export async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolde
         }
         catch (error) {
             console.error(`❌ Sync failed for table "${table}":`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+            throw error; // propagate error upward
         }
     }
     // cloudCleanUp relies on querying data from the local database, so best to run cloudCleanUp BEFORE localCleanUp (which will hard delete local records)

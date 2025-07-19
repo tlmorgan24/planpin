@@ -1,4 +1,5 @@
 import { forwardRef, useContext, useState, useEffect } from "react";
+import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { PlanContext } from "./pages/Plan";
 import { DbContext, UserContext } from "./main";
@@ -105,7 +106,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imageFileNames
     const [newImages, setNewImages] = useState([]); // will be array of image objects for each NEWLY ADDED image to the marker.
     const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
-    const [loading, setLoading] = useState(false); // to allow modal to show a loading icon when this is set to true
+    const [loading, setLoading] = useState(false); // to allow modal to show a loading icon when this is set to true (note we opt for manual loading instead of just a toast, so that we can prevent the user seeing & interacting with the form modal while it is loading/submitting)
     const [imagesToLoad, setImagesToLoad] = useState(0); // number of images remaining to load before we can set loading to false (will be set to number of imageUris)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
@@ -268,9 +269,10 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     }
 
     async function onAddPhoto() {
-        setLoading(true);
+        toast.loading("Adding image...", {id: 'loading'});
         const image = await captureImage(); // image object is as saved from Camera.getPhoto
         setNewImages(prev => [...prev, image]); // add new image to newImages array
+        toast.success("Image added", {id: 'loading'});
     }
 
     // When user presses submit, submit to database and close form:
@@ -377,6 +379,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
         }
 
+        toast.success("Submitted!");
         closeModal();
 
         // we can leave loading=true, so that next time modal is opened, will open with loading screen until useEffect finishes
@@ -406,7 +409,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             <form onSubmit={handleSubmit} style={ loading ? {position: 'fixed', top: '200vh', visibility: 'hidden'} : {} } > {/* properties left as defaults defined in index.css if not loading */}
 
                 <div className="big-buttons-container">
-                    <button type="button" className="do" onClick={onAddPhoto}>Add image</button>
+                    <button type="button" className="accented" onClick={onAddPhoto}>Add image</button>
                 </div>
 
                 {/* Defect reference, e.g. "#001": */}
@@ -456,10 +459,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 ))}
 
                 <div className="big-buttons-container">
-                    <div className="horizontal-button-group">
-                        <button type="submit" className="good">Submit</button>
-                        <button type="button" onClick={onRequestClose}>Cancel</button>
-                    </div>
+                    <button type="submit" className="accented">Submit</button>
+                    <button type="button" onClick={onRequestClose}>Cancel</button>
                     <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
                 </div>
 
@@ -476,6 +477,8 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
     const {db, supabase} = useContext(DbContext);
 
     async function handleClick() {
+
+        toast.loading("Deleting image...", {id: 'loading'});
 
         const imageId = imageIds[index];
         const platform = Capacitor.getPlatform();
@@ -508,10 +511,12 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
         setImageIds(prev => prev.filter((_, i) => i !== index)); // sets imageIds to new array with same items as previous array, except without item at specified index
         setImageUris(prev => prev.filter((_, i) => i !== index));
 
+        toast.success("Image removed", {id: 'loading'});
+
     }
 
     return(
-        <button type="button" class="bad" onClick={handleClick}>Delete image</button>
+        <button type="button" className="bad" onClick={handleClick}>Delete image</button>
     );
 
 }
@@ -522,10 +527,11 @@ function NewImageDeleteButton({index, setNewImages}) {
     async function handleClick() {
         // Remove image from newImages state (triggering re-render of images):
         setNewImages(prev => prev.filter((_, i) => i !== index)); // sets newImages to new array with same items as previous array, except without item at specified index
+        toast.success("Image removed");
     }
 
     return(
-        <button type="button" class="bad" onClick={handleClick}>Delete image</button>
+        <button type="button" className="bad" onClick={handleClick}>Delete image</button>
     );
 
 }
@@ -552,6 +558,8 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
         // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist.
         // Even though this is only soft-delete, we want to ensure the deleted_at for the image is older than the deleted_at for the marker, so there is no reason for marker to get deleted without image being deleted first.
         
+        toast.loading("Deleting marker...", {id: 'loading'});
+
         const platform = Capacitor.getPlatform();
 
         if (platform !== 'web') { // on mobile
@@ -605,6 +613,7 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
         }
 
         setClickLocations(prev => prev.filter(loc => loc.id !== markerId)); // visually erase marker
+        toast.success("Marker deleted", {id: 'loading'});
         closeModal();
 
     }

@@ -11,6 +11,7 @@ export async function captureImage() {
         //source: CameraSource.Camera, // this would only use the camera to take a photo; leaving blank means options for both photo and library image
         //quality: 90, // this would set image quality (0-100, higher being better quality). Optional, for now leave it out.
         //allowEditing: true, // this would allow user to make small edits to captured image (only if just-captured photo, not possible if photo from library). But, doesn't work well; best to leave it out.
+        webUseInput: true, // use standard HTML file input if on web
     });
 
     if (!(image.format == 'jpeg' || image.format == 'png')) {

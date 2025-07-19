@@ -4,8 +4,8 @@
   --secondary-color: #565656;
   --accent-color: #085d75;
   --inverse-primary-color: #fefefe;
-  --inverse-accent-color: #a3cfdb;
-  --mid-accent-color: #8bc4d4;
+  --inverse-accent-color: #b6d9e2;
+  --mid-accent-color: #96c8d5;
 
   --hovering-background-color: #e0e0e0;
 
@@ -17,9 +17,9 @@
   --good-hovering-background-color: #8eba93;
   --good-foreground-color: #2c422f;
 
-  --do-background-color: var(--inverse-accent-color);
-  --do-hovering-background-color: var(--mid-accent-color);
-  --do-foreground-color: var(--accent-color);
+  --accented-background-color: var(--inverse-accent-color);
+  --accented-hovering-background-color: var(--mid-accent-color);
+  --accented-foreground-color: var(--accent-color);
 
   --body-margin: 8px; /* will not apply this margin directly to body element; instead, will apply to safe-area-container (which is a child of body & root) */
   /* Set usable width and height within body content, such that whole viewport is spanned with no scrolling required: */
@@ -161,13 +161,17 @@ markerLayer fill entirety of pageCanvas.
   overflow-y: auto;
   width: var(--usable-width);
   height: var(--usable-height);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 
 /* Modals */
 
 /* FormModal, used on Plan page for adding/editing marker information: */
-.form-modal, .settings-modal {
+.form-modal, .settings-modal, .auth-modal {
   position: fixed;
   bottom: 0; /* bottom of modal is always at bottom of viewport */
   left: 50%;
@@ -185,7 +189,7 @@ markerLayer fill entirety of pageCanvas.
   border-bottom-right-radius: 0;
 }
 
-.form-modal form {
+.form-modal form, .auth-modal form {
   position: relative;
   width: 100%;
   display: flex;
@@ -292,12 +296,12 @@ button:hover {
   background-color: var(--good-hovering-background-color);
 }
 
-.do {
-  color: var(--do-foreground-color);
-  background-color: var(--do-background-color);
+.accented {
+  color: var(--accented-foreground-color);
+  background-color: var(--accented-background-color);
 }
-.do:hover {
-  background-color: var(--do-hovering-background-color);
+.accented:hover {
+  background-color: var(--accented-hovering-background-color);
 }
 
 .big-buttons-container {
@@ -307,27 +311,22 @@ button:hover {
   max-width: 100%;
   text-align: center; /* will be inherited by children */
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
   gap: 5px;
 }
 
 .big-buttons-container button {
+  width: 200px;
+  max-width: 100%;
   padding-top: 10px;
   padding-bottom: 10px;
   padding-left: 15px;
   padding-right: 15px;
   font-size: 1.1rem;
-}
-
-.big-buttons-container .horizontal-button-group {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  gap: 5px;
-}
-
-.big-buttons-container .horizontal-button-group button {
   flex-grow: 1;
 }
 

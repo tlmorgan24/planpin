@@ -1,18 +1,16 @@
 import { useContext, useState, useRef, useEffect, createContext } from "react";
 import Modal from 'react-modal';
+import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
 import { PageCanvas } from "../pdf-render";
 import { getPdfObjects, saveFile } from '../pdf-setup';
 import { DbContext, UserContext } from "../main";
 import { SyncButton, saveBlobToSupabase } from "../sync";
-import Loading from "./Loading";
 import { logOut, deleteAccount } from "./Auth";
 
 
 // -- CONTEXT VARIABLES --
-// ****** NOTE: I THINK HOME CONTEXT IS NOT USED ANYWHERE APART FROM THIS HOME SCRIPT ITSELF AND THE SYNC BUTTON.
-// MAYBE I CAN CLEAN THINGS UP SO THAT THERE IS NO NEED TO DEFINE HOME CONTEXT? Something to consider for future
 
 // Define context object:
 export const HomeContext = createContext();
@@ -23,14 +21,11 @@ function HomeProvider({children}) {
     const {userId, pdfFolder, saveDir} = useContext(UserContext);
     const {db, supabase} = useContext(DbContext);
     const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
-    const [loadingPdfObjects, setLoadingPdfObjects] = useState(false); // to allow loading icon to show when PDF objects are being fetched
     const [settingsOpen, setSettingsOpen] = useState(false); // to allow settings modal to pop out when desired
 
     async function refreshPdfObjects() {
 
-        console.log(userId);
-
-        setLoadingPdfObjects(true);
+        toast.loading("Loading...", { id: 'loading' }); // specify id, so if already have loading toast (with same id), won't create a new one
 
         if ( userId === undefined || pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
 
@@ -62,7 +57,7 @@ function HomeProvider({children}) {
         const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter, supabase); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
         setPdfObjects(pdfObjects);
         
-        setLoadingPdfObjects(false);
+        toast.success("Refreshed plans", { id: 'loading' }); // must match ID of loading toast, to remove that loading toast
 
     };
 
@@ -75,7 +70,6 @@ function HomeProvider({children}) {
     return (
         <HomeContext.Provider value={{
             pdfObjects, refreshPdfObjects,
-            loadingPdfObjects, setLoadingPdfObjects,
             settingsOpen, setSettingsOpen,
         }}>
             {children}
@@ -136,14 +130,13 @@ function PDFInput() {
 
     const {db, supabase} = useContext(DbContext);
     const {userId, pdfFolder, saveDir} = useContext(UserContext);
-    const {refreshPdfObjects, loadingPdfObjects, setLoadingPdfObjects} = useContext(HomeContext);
-    const [uploadMessage, setUploadMessage] = useState(null);
+    const {refreshPdfObjects} = useContext(HomeContext);
     
     const handleUpload = async function(e) {
 
         e.preventDefault();
         if (pdfFolder === undefined) return;
-        setLoadingPdfObjects(true);
+        toast.loading("Loading...", { id: 'loading' });
 
         const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
 
@@ -183,52 +176,34 @@ function PDFInput() {
                 if (error) console.error('Error inserting plan: ', error);
             }
 
-            setUploadMessage('PDF file uploaded successfully!');
             await refreshPdfObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
+            // Note, success toast is displayed at end of refreshPdfObjects, so we are not displaying one here
         
         } else if (file) {
-            setUploadMessage('The file must be a .pdf file.');
+            toast.error('The file must be a .pdf file.', { id: 'loading' }); // same ID as loading toast, to remove that loading toast
         } else {
-            setUploadMessage('Please upload a file.');
+            toast.error('Please upload a file.', { id: 'loading' }); // same ID as loading toast, to remove that loading toast
         }
-
-        // Only show the upload message for 5s before removing it:
-        setTimeout(() => {
-            setUploadMessage(null);
-        }, 5000)
         
     };
 
     // We will style the overall pdf-input-container similarly to thumbnails of existing PDFs (e.g. same size), to fit nicely in layout.
     // If plans are loading (refreshPdfObjects is running), we will show a loading icon where the input container should go.
 
-    // Loading icon:
-    if (loadingPdfObjects) {
-        return (
-            <div className="pdf-input-container">
-                <Loading />
-            </div>
-        )
-    }
+    return (
+        <div className="pdf-input-container">
+            {/* 
+            File inputs are notoriously hard to style directly. To enable styling, we will
+            hide the actual file input (set display: none) and style the label instead (clicking HTML label
+            automatically triggers the input it is associated with via the "for" attribute).
 
-    // PDF input:
-    else {
-        return (
-            <div className="pdf-input-container">
-                {/* 
-                File inputs are notoriously hard to style directly. To enable styling, we will
-                hide the actual file input (set display: none) and style the label instead (clicking HTML label
-                automatically triggers the input it is associated with via the "for" attribute).
-
-                Also, rather than a traditional form with submit button (which would require user to select submit after
-                selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
-                */}
-                <label className="custom-file-input" htmlFor="file-input">File input</label>
-                <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/>
-                <p>{uploadMessage}</p>
-            </div>
-        );
-    }
+            Also, rather than a traditional form with submit button (which would require user to select submit after
+            selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
+            */}
+            <label className="custom-file-input" htmlFor="file-input">File input</label>
+            <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/>
+        </div>
+    );
     
 }
 
@@ -306,11 +281,11 @@ function PDFDeleteButton({fileName}) {
 
     const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
-    const {refreshPdfObjects, setLoadingPdfObjects} = useContext(HomeContext);
+    const {refreshPdfObjects} = useContext(HomeContext);
 
     async function handleClick() {
 
-        setLoadingPdfObjects(true);
+        toast.loading("Loading...", { id: 'loading' });
 
         const platform = Capacitor.getPlatform();
             
@@ -448,6 +423,7 @@ function PDFDeleteButton({fileName}) {
         // Note we are not hard-deleting the files from storage here, as that happens as part of separate clean-up function (see sync.jsx)
 
         await refreshPdfObjects();
+        // Note, success toast is displayed at end of refreshPdfObjects, so we are not displaying one here
 
     }
 
@@ -466,7 +442,6 @@ function SettingsModal() {
     const { db, supabase } = useContext(DbContext);
     const { saveDir } = useContext(HomeContext);
     const { settingsOpen, setSettingsOpen } = useContext(HomeContext);
-    const [loading, setLoading] = useState(false);
 
     function closeSettings() {
         setSettingsOpen(false);
@@ -475,19 +450,15 @@ function SettingsModal() {
         await logOut(supabase, setUserId);
     }
     async function deleteUserAccount() {
-        setLoading(true);
         await deleteAccount(supabase, db, userId, setUserId, saveDir);
-        setLoading(false);
     }
 
     return (
         <Modal className="settings-modal" isOpen={settingsOpen} onRequestClose={closeSettings}>
             <div className="big-buttons-container">
                 <button type="button" onClick={logOutUser}>Log out</button>
-                <button type="button" className="bad" onClick={deleteUserAccount}>
-                    {loading ? <Loading /> : 'Delete account'}
-                </button>
                 <button type="button" onClick={closeSettings}>Close</button>
+                <button type="button" className="bad" onClick={deleteUserAccount}>Delete account</button>
             </div>
         </Modal>
     );

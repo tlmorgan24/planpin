@@ -1,4 +1,5 @@
 import { useContext, useState, useEffect } from "react";
+import { toast } from 'sonner';
 import { Share } from '@capacitor/share';
 import { Filesystem } from "@capacitor/filesystem";
 import { DbContext, UserContext } from "./main";
@@ -6,7 +7,6 @@ import { PlanContext } from "./pages/Plan"; // to access context variables
 import { useNavigate } from "react-router-dom";
 import { saveFile } from "./pdf-setup";
 import { Capacitor } from "@capacitor/core";
-import Loading from "./pages/Loading";
 
 
 // -- BACK TO HOME --
@@ -28,11 +28,10 @@ export function GenerateReportButton() {
     const {userId, saveDir} = useContext(UserContext);
     const {supabase} = useContext(DbContext);
     const {planId} = useContext(PlanContext);
-    const [loading, setLoading] = useState(false);
 
     async function generateReport() {
 
-        setLoading(true);
+        toast.loading('Generating report...', {id: 'loading'});
 
         const { data, error } = await supabase.auth.getSession();
         if (error) console.error("Error: ", error);
@@ -80,6 +79,8 @@ export function GenerateReportButton() {
                     path: `${folder}/${fileName}`,
                 });
 
+                toast.success('Report generated!', {id: 'loading'}); // display success message right before Share sheet, instead of waiting for user to finish interacting with share sheet
+
                 await Share.share({
                     title: 'Generated Report',
                     url: uriResult.uri,
@@ -102,20 +103,19 @@ export function GenerateReportButton() {
 
                 URL.revokeObjectURL(url); // remove from memory
 
+                toast.success('Report downloaded!', {id: 'loading'});
+
             }
 
         } catch (error) {
+            toast.error('There was a problem generating the report', {id: 'loading'});
             console.error("Error generating report: ", error);
         }
-
-        setLoading(false);
 
     }
 
     return (
-        <button type="button" className="do" onClick={generateReport}>
-            {loading ? <Loading /> : 'Generate report'}
-        </button>
+        <button type="button" className="accented" onClick={generateReport}>Generate report</button>
     );
 
 }

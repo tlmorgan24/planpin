@@ -1,4 +1,5 @@
 import { useContext, useState } from "react";
+import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { DbContext, UserContext } from "../main";
 import { fullSync, wipeAll } from "../sync";
@@ -28,8 +29,8 @@ export default function Auth() {
 
     return(
         <div className="auth-container">
+            <h1>Welcome to this app!</h1>
             <div className='big-buttons-container'>
-                <h1>Welcome to this app!</h1>
                 <button onClick={signUp}>Sign up</button>
                 <button onClick={logIn}>Log in</button>
                 {Capacitor.getPlatform() !== 'web' ? 
@@ -53,9 +54,6 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 
     // Form values:
     const [formValues, setFormValues] = useState({email: '', password: ''}); // initalise to empty string (not null), so React knows this is a controlled component (recommended for form inputs)
-
-    // Message to give error feedback to user (e.g. weak password):
-    const [message, setMessage] = useState(null);
     
     // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
     function closeModal() {
@@ -84,27 +82,28 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
             console.error("Error: ", error);
             // Sign-up related errors:
             if (error.code === 'weak_password') {
-                setMessage("Weak password. Please choose a stronger password.");
+                toast.info("Weak password. Please choose a stronger password.");
                 return;
             }
             else if (error.code === 'email_address_invalid') {
-                setMessage("Invalid email address. Please try again.");
+                toast.info("Invalid email address. Please try again.");
                 return;
             }
             else if (error.code === 'user_already_exists') {
-                setMessage("User already exists. Please log in instead of signing up.");
+                toast.info("User already exists. Please log in instead of signing up.");
                 return;
             }
             // Login-related errors:
             else if (error.code === 'invalid_credentials') {
-                setMessage("Invalid credentials. Please try again.");
+                toast.error("Invalid credentials. Please try again.");
                 return;
             }
             else if (error.code === 'email_not_confirmed') {
-                setMessage("Email not confirmed. Please try again."); // I have currently disabled requirement for email verification, so this will never actually happen
+                toast.info("Email not confirmed. Please try again."); // I have currently disabled requirement for email verification, so this will never actually happen
                 return;
             }
             else {
+                toast.error("Something went wrong");
                 throw error;
             }
         }
@@ -127,7 +126,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
     };
 
     return(
-        <Modal className="modal" isOpen={modalIsOpen} onRequestClose={closeModal}>
+        <Modal className="auth-modal" isOpen={modalIsOpen} onRequestClose={closeModal}>
             
             <form onSubmit={handleSubmit}>
 
@@ -143,11 +142,12 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
                     <input id="password" name="password" type="password" value={formValues.password} onChange={handleFormChange} />
                 </div>
 
-                <button type="submit">Submit</button>
-                <button type="button" onClick={closeModal}>Cancel</button>
+                <div className="big-buttons-container">
+                    <button type="submit" className="accented">Submit</button>
+                    <button type="button" onClick={closeModal}>Cancel</button>
+                </div>
 
             </form>
-            <p>{message}</p>
 
         </Modal>
     );
@@ -206,9 +206,13 @@ export async function logOut(supabase, setUserId) {
 
     setUserId(undefined);
 
+    toast.success('Logged out!');
+
 }
 
 export async function deleteAccount(supabase, sqliteDb, userId, setUserId, saveDir) {
+
+    toast.loading('Deleting account...', {id: 'loading'});
 
     await wipeAll(supabase, sqliteDb, userId, saveDir); // delete all data (database records & files) associated with user
     await deleteUser(userId); // delete user profile itself from Supabase auth (requires service key, hence have to post to server)
@@ -238,8 +242,11 @@ export async function deleteAccount(supabase, sqliteDb, userId, setUserId, saveD
                 throw new Error(result.detail || 'Failed to delete user');
             }
 
+            toast.success('Account deleted', {id: 'loading'});
+
         } catch (error) {
             console.error("Error deleting user: ", error);
+            toast.error('There was a problem deleting your account', {id: 'loading'});
         }
 
     }
