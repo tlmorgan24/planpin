@@ -28,9 +28,17 @@ export default function Auth() {
 
     return(
         <div className="auth-container">
-            <button onClick={signUp}>Sign up</button>
-            <button onClick={logIn}>Log in</button>
-            <button onClick={continueAsGuest}>Continue as guest</button>
+            <div className='big-buttons-container'>
+                <h1>Welcome to this app!</h1>
+                <button onClick={signUp}>Sign up</button>
+                <button onClick={logIn}>Log in</button>
+                {Capacitor.getPlatform() !== 'web' ? 
+                    <>
+                    <button className="big-button" onClick={continueAsGuest}>Continue as guest</button>
+                    <p>If you continue as guest, you will not be able to sync to cloud or generate reports</p>
+                    </>
+                : null}
+            </div>
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
     );

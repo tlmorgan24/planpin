@@ -21,10 +21,10 @@ function Marker({ id, canvasX, canvasY, setClickedId}) {
     }
 
     return(
-        <div 
+        <div
+            className="marker"
             id={id} // marker ID as stored in database
             onClick={handleClick}
-            className="marker"
             style={{
                 position: 'absolute', // such that left and top positions will be relative to parent (canvas), assuming that parent has non-static position.
                 width: `${width}px`,
@@ -389,7 +389,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     };
 
     return(
-        <Modal className="modal" isOpen={isOpen} onRequestClose={onRequestClose} >
+        <Modal className="form-modal" isOpen={isOpen} onRequestClose={onRequestClose} >
 
             {/* 
             If loading, we show the loading screen and set the form to hidden. By setting it to hidden,
@@ -405,8 +405,9 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             <form onSubmit={handleSubmit} style={ loading ? {position: 'fixed', top: '200vh', visibility: 'hidden'} : {} } > {/* properties left as defaults defined in index.css if not loading */}
 
-                <button type="button" onClick={onAddPhoto}>Add image</button>
-                <br/>
+                <div className="big-buttons-container">
+                    <button type="button" className="do" onClick={onAddPhoto}>Add image</button>
+                </div>
 
                 {/* Defect reference, e.g. "#001": */}
                 <div className="form-item">
@@ -441,7 +442,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 {/* Existing images (in database) associated with defect: */}
                 {imageUris.map((imageUri, i) => (
                 <div className="defect-image-container" key={i} >
-                    <img className="defect-image" src={imageUri} onLoad={handleImageLoaded} />
+                    <img src={imageUri} onLoad={handleImageLoaded} />
                     <ImageDeleteButton index={i} imageIds={imageIds} setImageIds={setImageIds} setImageUris={setImageUris} />
                 </div>
                 ))}
@@ -449,15 +450,18 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 {/* Newly-added images to defect (not yet in database, but having temporary paths): */}
                 {newImages.map((image, i) => (
                 <div className="defect-image-container" key={i} >
-                    <img className="defect-image" src={image.webPath} />
+                    <img src={image.webPath} />
                     <NewImageDeleteButton index={i} setNewImages={setNewImages}/>
                 </div>
                 ))}
 
-                <button type="submit">Submit</button>
-                <button type="button" onClick={onRequestClose}>Cancel</button>
-
-                <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
+                <div className="big-buttons-container">
+                    <div className="horizontal-button-group">
+                        <button type="submit" className="good">Submit</button>
+                        <button type="button" onClick={onRequestClose}>Cancel</button>
+                    </div>
+                    <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
+                </div>
 
             </form>
             
@@ -507,7 +511,7 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
     }
 
     return(
-        <button type="button" className="delete-button" onClick={handleClick}>Delete image</button>
+        <button type="button" class="bad" onClick={handleClick}>Delete image</button>
     );
 
 }
@@ -521,7 +525,7 @@ function NewImageDeleteButton({index, setNewImages}) {
     }
 
     return(
-        <button type="button" className="delete-button" onClick={handleClick}>Delete image</button>
+        <button type="button" class="bad" onClick={handleClick}>Delete image</button>
     );
 
 }
@@ -606,7 +610,7 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
     }
  
     return(
-        <button type="button" className="marker-delete-button" onClick={handleClick} style={{display: display}}>Delete marker</button>
+        <button type="button" className="bad" onClick={handleClick} style={{display: display}}>Delete marker</button>
     );
 
 }

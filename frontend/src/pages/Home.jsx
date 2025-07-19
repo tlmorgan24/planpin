@@ -481,12 +481,14 @@ function SettingsModal() {
     }
 
     return (
-        <Modal isOpen={settingsOpen} onRequestClose={closeSettings}>
-            <button type="button" onClick={logOutUser}>Log out</button>
-            <button type="button" onClick={deleteUserAccount}>
-                {loading ? <Loading /> : 'Delete account'}
-            </button>
-            <button type="button" onClick={closeSettings}>Close</button>
+        <Modal className="settings-modal" isOpen={settingsOpen} onRequestClose={closeSettings}>
+            <div className="big-buttons-container">
+                <button type="button" onClick={logOutUser}>Log out</button>
+                <button type="button" className="bad" onClick={deleteUserAccount}>
+                    {loading ? <Loading /> : 'Delete account'}
+                </button>
+                <button type="button" onClick={closeSettings}>Close</button>
+            </div>
         </Modal>
     );
 }

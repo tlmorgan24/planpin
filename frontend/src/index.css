@@ -2,9 +2,26 @@
 :root {
   --primary-color: #2d2d2d;
   --secondary-color: #565656;
-  --accent-color: #e67e22;
-  --text-color: #fefefe;
-  --body-margin: 8px; /* will not apply this margin directly to body element (due to special case of body margin causing parent to push out); instead, will apply to parent safe-area-container */
+  --accent-color: #085d75;
+  --inverse-primary-color: #fefefe;
+  --inverse-accent-color: #a3cfdb;
+  --mid-accent-color: #8bc4d4;
+
+  --hovering-background-color: #e0e0e0;
+
+  --bad-background-color: #ebaeae;
+  --bad-hovering-background-color: #db9191;
+  --bad-foreground-color: #830505;
+
+  --good-background-color: #b8e2bd;
+  --good-hovering-background-color: #8eba93;
+  --good-foreground-color: #2c422f;
+
+  --do-background-color: var(--inverse-accent-color);
+  --do-hovering-background-color: var(--mid-accent-color);
+  --do-foreground-color: var(--accent-color);
+
+  --body-margin: 8px; /* will not apply this margin directly to body element; instead, will apply to safe-area-container (which is a child of body & root) */
   /* Set usable width and height within body content, such that whole viewport is spanned with no scrolling required: */
   --usable-width: calc(100vw - 2 * var(--body-margin));
   --usable-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--body-margin));
@@ -33,7 +50,7 @@ html, body {
   padding: 0;
   margin: 0; /* note, our intended "body margin" is applied to safe-area-container instead of body itself */ 
   background-color: var(--primary-color);
-  color: var(--text-color);
+  color: var(--inverse-primary-color);
 }
 
 
@@ -50,12 +67,12 @@ markerLayer fill entirety of pageCanvas.
 
 .plan-container {
   position: relative; /* set to relative to allow it to be a containing block for children (particularly page buttons) */
+  overflow-y: auto;
   width: var(--usable-width);
   height: var(--usable-height);
   margin: 0;
   display: flex;
   flex-direction: column;
-  overflow: auto;
 }
 
 .page-container {
@@ -84,6 +101,11 @@ markerLayer fill entirety of pageCanvas.
   left: 0;
   width: 100%;
   height: 100%;
+  cursor: crosshair;
+}
+
+.marker {
+  cursor: pointer;
 }
 
 
@@ -91,10 +113,10 @@ markerLayer fill entirety of pageCanvas.
 
 .home-container {
   position: relative; /* set to relative to allow it to be a containing block for children */
+  overflow-y: auto;
   width: var(--usable-width);
   height: var(--usable-height);
   margin: 0;
-  overflow: auto;
 }
 
 .thumbnails-container {
@@ -136,17 +158,68 @@ markerLayer fill entirety of pageCanvas.
 
 .auth-container {
   position: relative; /* set to relative to allow it to be a containing block for children */
+  overflow-y: auto;
   width: var(--usable-width);
   height: var(--usable-height);
 }
 
 
+/* Modals */
+
+/* FormModal, used on Plan page for adding/editing marker information: */
+.form-modal, .settings-modal {
+  position: fixed;
+  bottom: 0; /* bottom of modal is always at bottom of viewport */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  max-width: var(--usable-width);
+  max-height: calc(var(--usable-height) * 0.8); /* modal will grow upwards based on size of content, up to this limit ... */
+  overflow: auto; /* ... at which point scrolling is activated */
+  padding: 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* bottom padding increased so content avoids bottom safe area */
+  background-color: var(--primary-color);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.form-modal form {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.defect-image-container {
+  position: relative;
+  width: 100%;
+}
+
+.defect-image-container img {
+  margin: 0 auto; /* 0 vertical margin; horizontal margin evenly split to centre the element */
+  max-width: 100%;
+  max-height: 400px;
+  display: block;
+  border-radius: 5px;
+}
+
+.defect-image-container button {
+  position: absolute;
+  margin-bottom: 5px; /* position 5px above bottom of containing block's padding */ 
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 /* Form items (used in Plan page modal for marker information): */
 
 .form-item {
-  width: 400px;
+  width: 600px;
   max-width: 100%;
-  margin-bottom: 1rem;
   background-color: var(--secondary-color);
   border: 1px solid var(--secondary-color);
   border-radius: 10px;
@@ -173,7 +246,7 @@ markerLayer fill entirety of pageCanvas.
   font-size: 1rem; /* provided rem is at least 16px, will prevent iOS' automatic zoom-in to view small form text */
   /* Invert the usual text and background colours, making the input box stand out: */
   color: var(--primary-color);
-  background-color: var(--text-color);
+  background-color: var(--inverse-primary-color);
   /* Inherit border radius at right, but keep zero radius at left: */
   border-top-right-radius: inherit;
   border-bottom-right-radius: inherit;
@@ -182,54 +255,6 @@ markerLayer fill entirety of pageCanvas.
   flex-grow: 1; /* input fills entire width left over after label */
 }
 
-
-/* Modal (used on Plan page for adding/editing marker information) */
-
-.modal {
-  position: fixed;
-  /*bottom: env(safe-area-inset-bottom); /* bottom of modal is always at top edge of bottom safe area */
-  /* 
-  ^ Does not work. Seemingly, with position: fixed and safe area insets included, bottom: 0 correponds to top of
-  bottom safe area rather than absolute bottom of viewport (even though AI chatbots seem to disagree).
-  */
-  bottom: 0; /* bottom of modal is always at top edge of bottom safe area */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 400px;
-  max-width: var(--usable-width);
-  max-height: calc(var(--usable-height) * 0.8); /* modal will grow upwards based on size of content, up to this limit ... */
-  overflow: auto; /* ... at which point scrolling is activated */
-  padding: 20px;
-  background-color: var(--primary-color);
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.modal form {
-  position: relative;
-  width: 100%;
-}
-
-.defect-image-container {
-  position: relative;
-  width: 100%;
-  margin: 10px;
-  /* 
-  Note we use margin for defect-image-container, so delete-button (which is absolutely positioned relative to this)
-  is unaffected by the margin (note "bottom" property means distance from containing block's bottom PADDING edge to 
-  element's bottom MARGIN edge).
-  */
-}
-
-.defect-image {
-  width: 100%;
-  display: block;
-  border-radius: 5px;
-}
-
-
 /* Buttons */
 
 button {
@@ -237,26 +262,73 @@ button {
   padding-bottom: 5px;
   padding-left: 10px;
   padding-right: 10px;
+  margin: 2px;
+  border: 0px solid var(--inverse-primary-color); /* otherwise, browser applies its own defaults, causing shadow effect */
   font-size: 0.8rem;
   color: var(--primary-color);
-  background-color: var(--text-color);
+  background-color: var(--inverse-primary-color);
   border-radius: 10px;
+  box-shadow: none;
   cursor: pointer;
 }
 
-.delete-button {
-  position: absolute;
-  margin-bottom: 5px; /* position 5px above bottom of containing block's padding */ 
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+button:hover {
+  background-color: var(--hovering-background-color);
 }
 
-/* THIS IS PLACEHOLDER, positioning marker delete button in normal flow, so will appear after submit & cancel buttons.
-Can improve to make whole submit/cancel/delete prettier, maybe so that submit/cancel together take up whole width, 
-then marker delete button on its own below that */
-.marker-delete-button {
-  position: static; /* placeholder */
+.bad {
+  color: var(--bad-foreground-color);
+  background-color: var(--bad-background-color);
+}
+.bad:hover {
+  background-color: var(--bad-hovering-background-color);
+}
+
+.good {
+  color: var(--good-foreground-color);
+  background-color: var(--good-background-color);
+}
+.good:hover {
+  background-color: var(--good-hovering-background-color);
+}
+
+.do {
+  color: var(--do-foreground-color);
+  background-color: var(--do-background-color);
+}
+.do:hover {
+  background-color: var(--do-hovering-background-color);
+}
+
+.big-buttons-container {
+  position: relative;
+  margin: 0 auto; /* 0 vertical margin; horizontal margin evenly split to centre the element */
+  width: 600px;
+  max-width: 100%;
+  text-align: center; /* will be inherited by children */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.big-buttons-container button {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  padding-left: 15px;
+  padding-right: 15px;
+  font-size: 1.1rem;
+}
+
+.big-buttons-container .horizontal-button-group {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 5px;
+}
+
+.big-buttons-container .horizontal-button-group button {
+  flex-grow: 1;
 }
 
 /* 
@@ -272,7 +344,7 @@ means we can simply set the buttons to be positioned at the bottom left and righ
   width: 150px; /* should be easily wide enough for "Previous page" and "Next page" text to fit on one line and for buttons to be same size */
   max-width: calc(95% / 2); /* just in case screen is ridiculously skinny, to prevent the two buttons overlapping */
   border: 1px solid var(--accent-color);
-  color: var(--text-color);
+  color: var(--inverse-primary-color);
   background-color: var(--primary-color);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;

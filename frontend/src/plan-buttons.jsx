@@ -113,7 +113,7 @@ export function GenerateReportButton() {
     }
 
     return (
-        <button type="button" onClick={generateReport}>
+        <button type="button" className="do" onClick={generateReport}>
             {loading ? <Loading /> : 'Generate report'}
         </button>
     );
