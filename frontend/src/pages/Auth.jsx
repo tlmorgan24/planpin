@@ -126,7 +126,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
     };
 
     return(
-        <Modal className="centre-modal" isOpen={modalIsOpen} onRequestClose={closeModal}>
+        <Modal className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={modalIsOpen} onRequestClose={closeModal}>
             
             <form onSubmit={handleSubmit}>
 

@@ -92,7 +92,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
 
 // ---- MARKER FORM ----
 
-// When user adds a marker (see addMarker function) or clicks on existing marker, this modal form will pop up to allow them to input additional details about the defect:
+// When user adds a marker (see addMarker function) or clicks on existing marker, this modal form will pop up to allow them to input additional details about the item:
 
 function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations, planId, db, supabase }) {
 
@@ -405,9 +405,12 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     };
 
     return(
-        <Modal className="side-modal" isOpen={isOpen} onRequestClose={onRequestClose} >
+        <Modal className={{base: 'side-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={isOpen} onRequestClose={onRequestClose} >
 
             {/* 
+            Note, we are giving it the class 'side-modal' in all cases, and a second class 'show' if modal is open.
+            This allows us to create a smooth CSS transition to pop out the modal.
+
             If loading, we show the loading screen and set the form to hidden. By setting it to hidden,
             the images will still load and onLoad triggers will fire, allowing the loading screen to eventually 
             go away once all images are loaded. We also need to set position to fixed and off screen, so won't take up 
@@ -421,47 +424,49 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             <form onSubmit={handleSubmit} style={ loading ? {position: 'fixed', top: '200vh', visibility: 'hidden'} : {} } > {/* properties left as defaults defined in index.css if not loading */}
 
-                {/* Defect reference, e.g. "#001": */}
+                <h1>{`Item ${formValues.reference}`}</h1>
+
+                {/* Item reference, e.g. "#001": */}
                 <div className="form-item">
                     <label htmlFor="reference">Reference</label>
                     <input id="reference" name="reference" type="text" value={formValues.reference} onChange={handleFormChange} />
                 </div>
 
-                {/* Defect category, e.g. "Internal walls": */}
+                {/* Item category, e.g. "Internal walls": */}
                 <div className="form-item">
                     <label htmlFor="category">Category</label>
                     <input id="category" name="category" type="text" value={formValues.category} onChange={handleFormChange} />
                 </div>
 
-                {/* Brief description of defect, e.g. "2mm horizontal crack to internal wall" (uses textarea instead of input, to allow spilling over multiple lines): */}
+                {/* Brief description of item, e.g. "2mm horizontal crack to internal wall" (uses textarea instead of input, to allow spilling over multiple lines): */}
                 <div className="form-item">
                     <label htmlFor="description">Description</label>
                     <textarea ref={textAreaRef} id="description" name="description" value={formValues.description} onChange={handleTextAreaChange} />
                 </div>
                 
-                {/* Severity of defect, 0-5 (0 being no defect; 5 being failure): */}
+                {/* Severity of item, 0-5 (0 being no defect; 5 being failure): */}
                 <div className="form-item">
                     <label htmlFor="severity">Severity</label>
                     <input id="severity" name="severity" type="number" value={formValues.severity} onChange={handleFormChange} />
                 </div>
                 
-                {/* Extent of defect, 0-5 (0 being no defect; 5 being full extent of element): */}
+                {/* Extent of item, 0-5 (0 being no defect; 5 being full extent of element): */}
                 <div className="form-item">
                     <label htmlFor="extent">Extent</label>
                     <input id="extent" name="extent" type="number" value={formValues.extent} onChange={handleFormChange} />
                 </div>
 
-                {/* Existing images (in database) associated with defect: */}
+                {/* Existing images (in database) associated with item: */}
                 {imageUris.map((imageUri, i) => (
-                <div className="defect-image-container" key={i} >
+                <div className="item-image-container" key={i} >
                     <img src={imageUri} onLoad={handleImageLoaded} />
                     <ImageDeleteButton index={i} imageIds={imageIds} setImageIds={setImageIds} setImageUris={setImageUris} />
                 </div>
                 ))}
 
-                {/* Newly-added images to defect (not yet in database, but having temporary paths): */}
+                {/* Newly-added images to item (not yet in database, but having temporary paths): */}
                 {newImages.map((image, i) => (
-                <div className="defect-image-container" key={i} >
+                <div className="item-image-container" key={i} >
                     <img src={image.webPath} />
                     <NewImageDeleteButton index={i} setNewImages={setNewImages}/>
                 </div>

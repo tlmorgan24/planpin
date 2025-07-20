@@ -475,7 +475,7 @@ function SettingsModal() {
     }
 
     return (
-        <Modal className="side-modal" isOpen={settingsOpen} onRequestClose={closeSettings}>
+        <Modal className={{base: 'side-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={settingsOpen} onRequestClose={closeSettings}>
             <div className="big-buttons-container">
                 <button type="button" onClick={logOutUser}>Log out</button>
                 <button type="button" onClick={closeSettings}>Close</button>

@@ -189,7 +189,16 @@ markerLayer fill entirety of pageCanvas.
 .centre-modal {
   left: calc(var(--usable-width)/2);
   top: calc(var(--usable-height)/2);
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(0); /* initially scaled down to infinitesimal point (translate is just to position centrally, nothing to do with the transition) */
+  transition: transform 0.3s ease;
+}
+
+.centre-modal.after-open {
+  transform: translate(-50%, -50%) scale(1); /* bring to normal size after opening */
+}
+
+.centre-modal.before-close {
+  transform: translate(-50%, -50%) scale(0); /* go back to infinitesimal size when closing */
 }
 
 .side-modal {
@@ -200,7 +209,18 @@ markerLayer fill entirety of pageCanvas.
   padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* bottom padding increased so content avoids bottom safe area */
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
+  transform: translateX(100%); /* initially off screen */
+  transition: transform 0.3s ease; /* smooth transition when transforming */
 }
+
+.side-modal.after-open {
+  transform: translateX(0); /* bring to normal on-screen position after opening */
+}
+
+.side-modal.before-close {
+  transform: translateX(100%); /* go back to off screen when closing */
+}
+
 
 .side-modal form, .centre-modal form {
   position: relative;
@@ -211,12 +231,12 @@ markerLayer fill entirety of pageCanvas.
   gap: 1rem;
 }
 
-.defect-image-container {
+.item-image-container {
   position: relative;
   width: 100%;
 }
 
-.defect-image-container img {
+.item-image-container img {
   margin: 0 auto; /* 0 vertical margin; horizontal margin evenly split to centre the element */
   max-width: 100%;
   max-height: 400px;
@@ -224,7 +244,7 @@ markerLayer fill entirety of pageCanvas.
   border-radius: 5px;
 }
 
-.defect-image-container button, .thumbnail button {
+.item-image-container button, .thumbnail button {
   position: absolute;
   margin-bottom: 5px; /* position 5px above bottom of containing block's padding */ 
   bottom: 0;

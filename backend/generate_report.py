@@ -22,10 +22,10 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
     doc.add_heading("Executive summary", level=1)
     doc.add_paragraph("This report documents the findings of the inspection carried out on ...")
 
-    doc.add_heading("Highest-severity defects", level=2)
+    doc.add_heading("Highest-severity items", level=2)
 
 
-    # Full defect data:
+    # Full item data:
     for record in marker_records:
 
         marker_id = record['id']
@@ -43,7 +43,7 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
         header_1 = table.cell(0, 0)
         header_2 = table.cell(0, 1)
         header = header_1.merge(header_2)
-        header.text = f"Defect reference: {record['reference'] or 'N/A'}"
+        header.text = f"Item reference: {record['reference'] or 'N/A'}"
 
         table.cell(1,0).text = "Category"
         table.cell(1,1).text = record['category'] or '' # if category is null, set to empty string (as setting to None object causes error)
