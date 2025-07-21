@@ -394,7 +394,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         setFormValues((prevState) => ({ ...prevState, [name]: value }));
     };
 
-    // Have to manually resize text area to enable dynamic size change based on length of user input
+    // Have to manually resize text area to enable dynamic size change based on length of user input:
     function handleTextAreaChange(event) {
         if (textAreaRef.current) {
             // Assuming 2.5rem is the desired minimum height of textarea (at time of writing, this matches the height of the normal input elements)

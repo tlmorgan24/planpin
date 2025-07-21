@@ -40,6 +40,10 @@ export default function Auth() {
                     </>
                 : null}
             </div>
+            <p>
+                See the <a href="/privacy-policy">privacy policy</a>.<br/>
+                Got questions? <a href="/contact">Get in touch</a>.
+            </p>
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
     );

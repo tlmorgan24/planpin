@@ -9,4 +9,3 @@ def delete_user(user_id):
     key = os.getenv('SUPABASE_SERVICE_KEY')
     supabase = create_client(url, key)
     supabase.auth.admin.delete_user(user_id)
-    return supabase

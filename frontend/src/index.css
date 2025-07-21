@@ -54,6 +54,22 @@ html, body {
   color: var(--inverse-primary-color);
 }
 
+a {
+  color: var(--hovering-background-color);
+}
+
+/* Top-level containers: */
+
+.home-container, .plan-container, .auth-container, .contact-container, .privacy-policy-container {
+  position: relative; /* set to relative to allow it to be a containing block for children */
+  overflow-y: auto;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
 /* 
 pageCanvas & markerLayer will be inside page-container of same size, 
@@ -65,16 +81,6 @@ pageCanvas and markerLayer). Can then make plan-container take up 100% of viewpo
 make page-container grow/shrink as appropriate to fill plan-container; and make pageCanvas and
 markerLayer fill entirety of pageCanvas.
 */
-
-.plan-container {
-  position: relative; /* set to relative to allow it to be a containing block for children (particularly page buttons) */
-  overflow-y: auto;
-  width: 100%; /* 100% of safe-area-container, which is its containing block */
-  height: 100%;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-}
 
 .page-container {
   position: relative;
@@ -112,14 +118,6 @@ markerLayer fill entirety of pageCanvas.
 
 /* Thumbnails of plans (on home page) */
 
-.home-container {
-  position: relative; /* set to relative to allow it to be a containing block for children */
-  overflow-y: auto;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-}
-
 .thumbnails-container {
   position: relative; /* to allow thumbnail to use % units in reference to it */
   width: 100%;
@@ -152,20 +150,6 @@ markerLayer fill entirety of pageCanvas.
 .thumbnail-canvas {
   width: 100%;
   height: 100%;
-}
-
-
-/* Authentication screen */
-
-.auth-container {
-  position: relative; /* set to relative to allow it to be a containing block for children */
-  overflow-y: auto;
-  width: 100%;
-  height: 100%;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 
@@ -221,16 +205,6 @@ markerLayer fill entirety of pageCanvas.
   transform: translateX(100%); /* go back to off screen when closing */
 }
 
-
-.side-modal form, .centre-modal form {
-  position: relative;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
 .item-image-container {
   position: relative;
   width: 100%;
@@ -252,7 +226,16 @@ markerLayer fill entirety of pageCanvas.
   transform: translateX(-50%);
 }
 
-/* Form items (used in Plan page modal for marker information, and Auth modal for authentication): */
+/* Forms: */
+
+form {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
 
 .form-item {
   width: 600px;

@@ -481,6 +481,10 @@ function SettingsModal() {
                 <button type="button" onClick={closeSettings}>Close</button>
                 <button type="button" className="bad" onClick={onRequestDelete}>Delete account</button>
             </div>
+            <p>
+                <a href="/contact">Contact</a><br/>
+                <a href="/privacy-policy">Privacy policy</a>
+            </p>
             {/* 
             When user clicks "Delete account" button, we show confirmation modal. 
             If user THEN clicks confirm on the confirmation modal, we proceed to delete the account.

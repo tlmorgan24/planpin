@@ -8,6 +8,8 @@ import Home from './pages/Home';
 import Plan from './pages/Plan';
 import Auth from './pages/Auth';
 import Loading from './pages/Loading';
+import Contact from './pages/Contact';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // -- APP --
 
@@ -55,6 +57,8 @@ export default function App() {
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/plan" element={<Plan />} />
+                        <Route path="/contact" element={<Contact />} />
+                        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                     </Routes>
                 </BrowserRouter>
             );

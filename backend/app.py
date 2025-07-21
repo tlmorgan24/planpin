@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from generate_report import generate_report
 from delete_user import delete_user
+from forward_message import forward_message
 
 app = FastAPI()
 
@@ -27,6 +28,11 @@ class ReportRequest(BaseModel):
 class DeleteUserRequest(BaseModel):
     user_id: str
 
+class ContactForm(BaseModel):
+    name: str
+    email: str
+    message: str
+
 @app.post("/generate_report")
 def generate_report_server(data: ReportRequest):
     server_filepath = "/tmp/generated-report.docx" # filename for report to generate (use special temporary folder)
@@ -41,3 +47,11 @@ def delete_user_server(data: DeleteUserRequest):
         return {"status": "success", "message": "User deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting user: {str(e)}")
+    
+@app.post("/forward_message")
+def forward_message_server(data: ContactForm):
+    try:
+        forward_message(data.name, data.email, data.message)
+        return {"status": "success", "message": "Message forwarded"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error forwarding message: {str(e)}")
