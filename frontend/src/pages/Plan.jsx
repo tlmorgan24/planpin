@@ -117,25 +117,30 @@ function PlanProvider({children}) {
 
                     // Get marker color according to its category:
                     let color = null;
-                    if (platform !== 'web') { // on mobile app:
-                        const categoriesResult = await db.query(
-                            `
-                                SELECT color 
-                                FROM categories 
-                                WHERE id = ?
-                            `, 
-                            [row['category_id']]
-                        );
-                        color = categoriesResult.values[0]['color']; 
-                    }
-                    else { // on web:
-                        const {data, error} = await supabase
-                            .from('categories')
-                            .select('color')
-                            .eq('id', row['category_id'])
-                            .single(); // exactly one result expected
-                        color = data['color']; 
-                        if (error) console.error(error);
+                    let categoryName = null;
+                    if (row['category_id']) { // noting category_id may be null (if no category is associated with marker)
+                        if (platform !== 'web') { // on mobile app:
+                            const categoriesResult = await db.query(
+                                `
+                                    SELECT category_name, color
+                                    FROM categories 
+                                    WHERE id = ?
+                                `, 
+                                [row['category_id']]
+                            );
+                            color = categoriesResult.values[0]['color']; 
+                            categoryName = categoriesResult.values[0]['category_name']
+                        }
+                        else { // on web:
+                            const {data, error} = await supabase
+                                .from('categories')
+                                .select('category_name, color')
+                                .eq('id', row['category_id'])
+                                .single(); // exactly one result expected
+                            color = data['color']; 
+                            categoryName = data['category_name']
+                            if (error) console.error(error);
+                        }
                     }
     
                     return {
@@ -143,7 +148,8 @@ function PlanProvider({children}) {
                         pageNum: row['page_number'],
                         x: row['x'],
                         y: row['y'],
-                        color: color,
+                        color,
+                        categoryName,
                     }
                 }));
                 setClickLocations(loadedClickLocations);

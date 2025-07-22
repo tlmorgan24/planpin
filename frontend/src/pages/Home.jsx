@@ -58,7 +58,7 @@ function HomeProvider({children}) {
         const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter, supabase); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
         setPdfObjects(pdfObjects);
         
-        toast.success("Plans loaded", { id: 'loading' }); // must match ID of loading toast, to remove that loading toast
+        toast.success("Plans refreshed", { id: 'loading' }); // must match ID of loading toast, to remove that loading toast
 
     };
 

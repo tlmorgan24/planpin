@@ -1,3 +1,18 @@
+-------- DELETE EXISTING --------
+
+DROP VIEW IF EXISTS user_images;
+DROP VIEW IF EXISTS user_markers;
+DROP VIEW IF EXISTS user_plans;
+DROP VIEW IF EXISTS user_categories;
+DROP VIEW IF EXISTS user_users;
+DROP TABLE IF EXISTS images;
+DROP TABLE IF EXISTS markers;
+DROP TABLE IF EXISTS plans;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS users;
+
+-------- TABLES --------
+
 ---- CREATE USERS TABLE
 
 CREATE TABLE IF NOT EXISTS users (
@@ -16,13 +31,12 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY,
   category_name TEXT NOT NULL,
-  user_id TEXT NOT NULL,
+  user_id UUID NOT NULL,
   color TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   -- note, no synced_at, as this is only relevant locally on a per-device basis
   deleted_at TIMESTAMPTZ,
-  PRIMARY KEY (category_name, user_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -73,61 +87,7 @@ CREATE TABLE IF NOT EXISTS images (
   FOREIGN KEY (marker_id) REFERENCES markers(id) ON DELETE CASCADE
 );
 
----- CREATE USERS VIEW (filtered to current authenticated user)
-
-/* 
-We are setting up nested user_... views, eventually leading back to auth.uid().
-*/
-CREATE VIEW user_users
-WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
-  SELECT *
-  FROM users
-  WHERE id = (SELECT auth.uid()); -- "(SELECT auth.uid())" instead of just "auth.uid()" aids performance
-
----- CREATE CATEGORIES VIEW
-
-/* 
-We are setting up nested user_... views, eventually leading back to auth.uid().
-*/
-CREATE VIEW user_categories
-WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
-  SELECT c.*
-  FROM categories c
-  JOIN user_users u ON c.user_id = u.id;
-
----- CREATE PLANS VIEW
-
-/* 
-We are setting up nested user_... views, eventually leading back to auth.uid().
-*/
-CREATE VIEW user_plans
-WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
-  SELECT p.*
-  FROM plans p
-  JOIN user_users u ON p.user_id = u.id;
-
----- CREATE MARKERS VIEW
-
-/* 
-We are setting up nested user_... views, eventually leading back to auth.uid().
-*/
-CREATE VIEW user_markers
-WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
-  SELECT m.*
-  FROM markers m
-  JOIN user_plans p ON m.plan_id = p.id; -- we are setting up nested user_... views, eventually leading back to auth.uid()
-
----- CREATE IMAGES VIEW
-
-/* 
-We are setting up nested user_... views, eventually leading back to auth.uid().
-*/
-CREATE VIEW user_images
-WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
-  SELECT i.*
-  FROM images i
-  JOIN user_markers m ON i.marker_id = m.id; -- we are setting up nested user_... views, eventually leading back to auth.uid()
-
+-------- RLS --------
 
 ---- CREATE USERS POLICY (to allow authenticated users to access their own records, and allow nobody else to access them)
 
@@ -230,3 +190,60 @@ WITH CHECK (
         AND p.user_id = (SELECT auth.uid())
     )
 );
+
+-------- VIEWS --------
+
+---- CREATE USERS VIEW (filtered to current authenticated user)
+
+/* 
+We are setting up nested user_... views, eventually leading back to auth.uid().
+*/
+CREATE VIEW user_users
+WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
+  SELECT *
+  FROM users
+  WHERE id = (SELECT auth.uid()); -- "(SELECT auth.uid())" instead of just "auth.uid()" aids performance
+
+---- CREATE CATEGORIES VIEW
+
+/* 
+We are setting up nested user_... views, eventually leading back to auth.uid().
+*/
+CREATE VIEW user_categories
+WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
+  SELECT c.*
+  FROM categories c
+  JOIN user_users u ON c.user_id = u.id;
+
+---- CREATE PLANS VIEW
+
+/* 
+We are setting up nested user_... views, eventually leading back to auth.uid().
+*/
+CREATE VIEW user_plans
+WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
+  SELECT p.*
+  FROM plans p
+  JOIN user_users u ON p.user_id = u.id;
+
+---- CREATE MARKERS VIEW
+
+/* 
+We are setting up nested user_... views, eventually leading back to auth.uid().
+*/
+CREATE VIEW user_markers
+WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
+  SELECT m.*
+  FROM markers m
+  JOIN user_plans p ON m.plan_id = p.id; -- we are setting up nested user_... views, eventually leading back to auth.uid()
+
+---- CREATE IMAGES VIEW
+
+/* 
+We are setting up nested user_... views, eventually leading back to auth.uid().
+*/
+CREATE VIEW user_images
+WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
+  SELECT i.*
+  FROM images i
+  JOIN user_markers m ON i.marker_id = m.id; -- we are setting up nested user_... views, eventually leading back to auth.uid()

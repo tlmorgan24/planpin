@@ -12,7 +12,8 @@ import ConfirmModal from "./ConfirmModal";
 
 // Creates marker at specified canvas location (where canvasX and canvasY are from top left of canvas in CS px):
 // This marker will be used to show the user's click locations on the plan.
-function Marker({ id, canvasX, canvasY, color, setClickedId }) {
+// categoryName not yet used, but the infrastructure to provide it to this component is in place, so can add feature to e.g. show category name on hover.
+function Marker({ id, canvasX, canvasY, color, categoryName, setClickedId }) {
     
     // CSS incorporated here rather than in .css file, due to dynamic nature of positioning and the fact that it is dependent on width & height.
     const width = 10; // px
@@ -80,11 +81,13 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
     return(                        
         <div ref={markerLayerRef} className="marker-layer" onClick={handleClick}>
             {/* Render markers according to latest markerLocations: */}
-            {markerLocations.map(({ id, canvasX, canvasY, color }) => (
-                <Marker key={id} id={id} canvasX={canvasX} canvasY={canvasY} color={color} setClickedId={setClickedId} />
+            {markerLocations.map(({ id, canvasX, canvasY, color, categoryName }) => (
+                <Marker key={id} id={id} canvasX={canvasX} canvasY={canvasY} color={color} categoryName={categoryName} setClickedId={setClickedId} />
             ))}
-            {/* Form modal to pop up when user wants to add a marker: */}
+            {/* Marker form modal to pop up when user wants to add a marker: */}
             <FormModal clickedId={clickedId} setClickedId={setClickedId} clickLocations={clickLocations} setClickLocations={setClickLocations} planId={planId} db={db} supabase={supabase} />
+            {/* Category form modal to pop up when user wants to add/edit a category: */}
+
         </div>
     );
 
@@ -108,16 +111,20 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imageFileNames
     const [newImages, setNewImages] = useState([]); // will be array of image objects for each NEWLY ADDED image to the marker.
     const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
+    
     const [loading, setLoading] = useState(false); // to allow modal to show a loading icon when this is set to true (note we opt for manual loading instead of just a toast, so that we can prevent the user seeing & interacting with the form modal while it is loading/submitting)
     const [imagesToLoad, setImagesToLoad] = useState(0); // number of images remaining to load before we can set loading to false (will be set to number of imageUris)
+    
     const [categoryOptionsData, setCategoryOptionsData] = useState([]); // options for category data to assign to marker (will be populated based off categories table of database for this user). Will be array of objects, each with an id, category_name and color property
+    const [categoryModalIsOpen, setCategoryModalIsOpen] = useState(false); // to open a modal within this modal, to add/edit a category (i.e. NOT referring to this modal itself)
+    const [categoryId, setCategoryId] = useState(null); // to enable passing category ID to abovementioned Category modal (note, this state is only used for said purposes, not for marker modal itself, which gets categoryId when needed directly from database)
 
     const textAreaRef = useRef(null); // HTML textarea element used for description (we have to useRef to enable auto-resizing as part of handleTextAreaChange below)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
     const [formValues, setFormValues] = useState({reference: '', categoryId: '', description: '', severity: '', extent: ''});
 
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(false); // whether THIS modal is open or not
 
     // Open form on change of clickedId (meaning user has just added a marker or clicked on an existing marker):
     useEffect(() => {
@@ -169,9 +176,23 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             // Get current data to set form values to (if marker already exists in database):
 
             let row = null;
-            let maxRefNo = 0; // highest existing reference number, so can pre-populate reference input with next-highest integer
+            let maxRefNo = 0; // highest existing reference number, so can pre-populate reference input with...
+            let prepopulatedRefNo = 0; // ...next-highest integer
 
             if (platform !== 'web') { // on mobile
+
+                // Get maximum reference (including of all deleted markers, to prevent misleading duplicates):
+                const maxResult = await db.query(
+                    `
+                        SELECT MAX(reference) AS max_reference
+                        FROM markers
+                    `
+                );
+                if (maxResult.values.length > 0) {
+                    maxRefNo = maxResult.values[0]['max_reference'];
+                }
+
+                // Get form data:
                 const markersResult = await db.query(
                     `
                         SELECT reference, category_id, description, severity, extent 
@@ -184,35 +205,16 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 if (markersResult.values.length !== 1) { // new marker; no database data yet; will not update default form inputs or attempt to get images below
                     setMarkerInDb(false);
                     setLoading(false);
+                    // Only other thing we need to set before returning is the default reference number for new marker:
+                    prepopulatedRefNo = Math.floor(maxRefNo) + 1;
+                    setFormValues(prev => ({...prev, reference: prepopulatedRefNo}));
                     return;
                 }
                 row = markersResult.values[0]; // query should return one row (if marker exists) or zero rows (if no marker exists). If latter, row will return undefined
 
-                // Get maximum reference (including of all deleted markers, to prevent misleading duplicates):
-                const maxResult = await db.query(
-                    `
-                        SELECT MAX(reference) AS max_reference
-                        FROM markers
-                    `
-                );
-                if (maxResult.values.length > 0) {
-                    maxRefNo = maxResult.values[0]['max_reference'];
-                }
             }
 
             else { // on web
-                const { data, error } = await supabase
-                    .from('user_markers')
-                    .select('reference, category_id, description, severity, extent')
-                    .eq('id', clickedId)
-                    .is('deleted_at', null);
-                if (error) console.error('Error: ', error);
-                if (data.length !== 1) { // new marker; no database data yet; will not update default form inputs or attempt to get images below
-                    setMarkerInDb(false);
-                    setLoading(false);
-                    return;
-                }
-                row = data[0];
 
                 // Get maximum reference (including of all deleted markers, to prevent misleading duplicates):
                 const { maxData, maxError } = await supabase
@@ -224,13 +226,29 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 if (maxData && maxData.length > 0) {
                     maxRefNo = maxData[0]['max_reference'];
                 }
-            }
 
-            const prepopulatedRefNo = Math.floor(maxRefNo) + 1;
+                // Get form data:
+                const { data, error } = await supabase
+                    .from('user_markers')
+                    .select('reference, category_id, description, severity, extent')
+                    .eq('id', clickedId)
+                    .is('deleted_at', null);
+                if (error) console.error('Error: ', error);
+                if (data.length !== 1) { // new marker; no database data yet; will not update default form inputs or attempt to get images below
+                    setMarkerInDb(false);
+                    setLoading(false);
+                    // Only other thing we need to set before returning is the default reference number for new marker:
+                    prepopulatedRefNo = Math.floor(maxRefNo) + 1;
+                    setFormValues(prev => ({...prev, reference: prepopulatedRefNo}));
+                    return;
+                }
+                row = data[0];
+
+            }
 
             // Here, we make sure that, if existing values are null, they are set to empty strings in the form to keep React happy
             const existingValues = {
-                reference: row.reference ? row.reference : prepopulatedRefNo,
+                reference: row.reference || prepopulatedRefNo, // note we allow user to choose a different reference and conserve this; prepopulatedRefNo is only a default value if ref unspecified
                 categoryId: row.category_id ?? '',
                 description: row.description ?? '',
                 severity: row.severity ?? '',
@@ -347,7 +365,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         const y = clickLocation.y;
         
         const reference = formValues.reference; // if form input is empty string, would not be able to submit to database, as number is expected (and we have NOT NULL constraint anyway). But no worries, as we ensure "required" in the HTML input below, so user can't submit empty string
-        const categoryId = formValues.categoryId;
+        const categoryId = formValues.categoryId === '' ? null : formValues.categoryId; // if form input is empty string, cannot submit to database, as UUID is expected, and empty string is not a UUID (should be explicitly made null instead)
         const description = formValues.description;
         const severity = formValues.severity === '' ? null : formValues.severity; // if form input is empty string, cannot submit to database, as number is expected (should be made null instead)
         const extent = formValues.extent === '' ? null : formValues.extent; // if form input is empty string, cannot submit to database, as number is expected (should be made null instead)
@@ -437,9 +455,55 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
         }
 
+        // Update clickLocations with new information according to category assigned to the marker:
+        /* 
+        KNOWN MINOR BUG: IF USER EDITS THE PROPERTIES OF A CATEGORY AND SUBMITS THE CATEGORY MODAL, 
+        BUT THEN CANCELS THIS FORM MODAL, THE UPDATED CATEGORY PROPERTIES PERSIST, BUT THE CHANGES ARE
+        NOT REFLECTED IN CLICKLOCATIONS (e.g. colour does not update). I think this is an acceptable bug for now
+        (all you have to do is go Home and back onto the plan, and the colours update).
+
+        IF I WANT TO FIX THIS BUG, I should do it by updating (all) clickLocations within the CategoryModal submission. 
+        Then, changes like a new colour are reflected regardless of whether this marker FormModal is submitted or cancelled.
+        */
+
+        let color = null;
+        let categoryName = null;
+
+        if (categoryId) {
+
+            if (platform !== 'web') { // on mobile
+                const categoriesResult = await db.query(
+                    `
+                        SELECT category_name, color
+                        FROM categories
+                        WHERE id = ?
+                    `, 
+                    [categoryId]
+                );
+                color = categoriesResult.values[0]['color']; 
+                categoryName = categoriesResult.values[0]['category_name']
+            }
+
+            else { // on web
+                const { data, error } = await supabase
+                    .from('user_categories')
+                    .select('category_name, color')
+                    .eq('id', categoryId)
+                    .single(); // exactly one result expected
+                if (error) console.error('Error: ', error);
+                color = data['color']; 
+                categoryName = data['category_name'];
+            }
+        
+        }
+
+        const updatedClickLocations = clickLocations.map(loc => 
+            loc.id === clickedId ? { ...loc, color, categoryName } : loc
+        );
+        setClickLocations(updatedClickLocations);
+
         toast.success("Submitted!");
         closeModal();
-
         // we can leave loading=true, so that next time modal is opened, will open with loading screen until useEffect finishes
 
     }
@@ -481,23 +545,23 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
                 <h2>{`Item #${formValues.reference}`}</h2>
 
-                {/* Item reference, e.g. "123": */}
+                {/* Item reference, e.g. "123" (note we make the input required, matching database constraint of NOT NULL): */}
                 <div className="form-item">
                     <label htmlFor="reference">Reference</label>
                     <input id="reference" name="reference" type="number" min="0" required value={formValues.reference} onChange={handleFormChange} />
                 </div>
 
-                {/* Item category, e.g. "Internal walls": */}
+                {/* Item category, e.g. "Internal walls" (NB, I use categoryId instead of category-id for attributes, even though against HTML convention, so it matches the formValues state and handleFormChange works properly): */}
                 <div className="form-item">
-                    <label htmlFor="category">Category</label>
-                    <select id="category" name="category" value={formValues.categoryId} onChange={handleFormChange} >
+                    <label htmlFor="categoryId">Category</label>
+                    <select id="categoryId" name="categoryId" value={formValues.categoryId} onChange={handleFormChange} >
                         <option value="">--Choose a category--</option>
                         {categoryOptionsData.map(row => (
                             <option key={row['id']} value={row['id']}>{row['category_name']}</option> // ensures IDs are stored as form values, but category NAMES are what are actually shown to user
                         ))}
                     </select>
-                    <EditCategoryButton categoryId={formValues.categoryId} setCategoryOptionsData={setCategoryOptionsData} />
-                    <NewCategoryButton setCategoryOptionsData={setCategoryOptionsData} />
+                    <EditCategoryButton categoryId={formValues.categoryId} setCategoryId={setCategoryId} setCategoryModalIsOpen={setCategoryModalIsOpen} />
+                    <NewCategoryButton setCategoryId={setCategoryId} setCategoryModalIsOpen={setCategoryModalIsOpen} />
                 </div>
 
                 {/* Brief description of item, e.g. "2mm horizontal crack to internal wall" (uses textarea instead of input, to allow spilling over multiple lines): */}
@@ -542,6 +606,9 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 </div>
 
             </form>
+
+            {/* Note, CategoryModal must come outside the <form>, as it also contains a <form>. Nested forms are not allowed. */}
+            <CategoryModal isOpen={categoryModalIsOpen} closeModal={() => {setCategoryModalIsOpen(false)}} categoryId={categoryId} setCategoryOptionsData={setCategoryOptionsData} />
             
         </Modal>
     );
@@ -723,35 +790,27 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
 
 }
 
-function EditCategoryButton({ categoryId, setCategoryOptionsData }) {
-
-    const [categoryModalIsOpen, setCategoryModalIsOpen] = useState(false);
+function EditCategoryButton({ categoryId, setCategoryId, setCategoryModalIsOpen }) {
 
     function handleClick() {
+        setCategoryId(categoryId);
         setCategoryModalIsOpen(true);
     }
 
     return (
-        <>
-            <button type="button" onClick={handleClick}>Edit</button>
-            <CategoryModal isOpen={categoryModalIsOpen} closeModal={() => {setCategoryModalIsOpen(false)}} categoryId={categoryId} setCategoryOptionsData={setCategoryOptionsData} />
-        </>
+        <button type="button" onClick={handleClick}>Edit</button>
     )
 }
 
-function NewCategoryButton({ setCategoryOptionsData }) {
-
-    const [categoryModalIsOpen, setCategoryModalIsOpen] = useState(false);
+function NewCategoryButton({ setCategoryId, setCategoryModalIsOpen }) {
 
     function handleClick() {
+        setCategoryId(null);
         setCategoryModalIsOpen(true);
     }
 
     return (
-        <>
-            <button type="button" onClick={handleClick}>New</button>
-            <CategoryModal isOpen={categoryModalIsOpen} closeModal={() => {setCategoryModalIsOpen(false)}} setCategoryOptionsData={setCategoryOptionsData} />
-        </>
+        <button type="button" onClick={handleClick}>New</button>
     )
 }
 
@@ -768,7 +827,7 @@ function CategoryModal({ isOpen, closeModal, categoryId=null, setCategoryOptions
 
             if (!isOpen) return; // only run when modal opens
 
-            // If creating new category, ensure form values reset to empty (in case may re-open with stale values):
+            // If creating new category, ensure form values reset to empty (in case may have been re-opened with stale values):
             if (!categoryId) {
                 setFormValues({ category_name: '', color: '' });
                 return;
@@ -810,6 +869,7 @@ function CategoryModal({ isOpen, closeModal, categoryId=null, setCategoryOptions
             existing = false;
             categoryId = crypto.randomUUID(); // Generate new random UUID for new category, so there will be no primary key conflict (the try/catch below is just to catch generic unexpected errors)
         }
+
         try {
 
             if (Capacitor.getPlatform() !== 'web') { // on mobile
@@ -912,7 +972,7 @@ async function addMarker(e, mapping, drawnWindow, pageNum, setClickLocations, se
     const {pdfX, pdfY} = mapCanvasToPDF(canvasX, canvasY, mapping); // from top left in true-size pt
     
     // Add to clickLocations:
-    const newClickLocation = { id:id, pageNum: pageNum, x: pdfX, y: pdfY, color: null }; // color initially null, as at this point, form modal has not yet popped out for user to choose a category (hence color)
+    const newClickLocation = { id:id, pageNum: pageNum, x: pdfX, y: pdfY, color: null, categoryName: null }; // some values initially null, as at this point, form modal has not yet popped out for user to choose a category
     setClickLocations(prev => [...prev, newClickLocation]); // add newClickLocation to clickLocations state
     // ^ This will automatically cause marker to be added to canvas, because clickLocations and is a dep for MarkerLayer's useEffect block (which calls drawMarkers below)
     setClickedId(id);
@@ -931,10 +991,11 @@ export function drawMarkers(canvas, mapping, pageNum, clickLocations, setMarkerL
             if (loc.pageNum == pageNum) { // clickLocations is for entire PDF, so have to filter to relevant page
                 const id = loc.id; // Unique ID from database
                 const {canvasX, canvasY} = mapPDFToCanvas(loc.x, loc.y, mapping); // convert PDF coordinates back to canvas coordinates (from top left, in CSS px)
-                const color = loc.color; // marker color
+                const color = loc.color; // marker color (as associated with category)
+                const categoryName = loc.categoryName;
                 // Create HTML element for marker only if within canvas:
                 if (canvasX >=0 && canvasX <= canvas.clientWidth && canvasY >= 0 && canvasY <= canvas.clientHeight) {
-                    newMarkerLocations.push({ id, canvasX, canvasY, color });
+                    newMarkerLocations.push({ id, canvasX, canvasY, color, categoryName });
                 }
             }
         });

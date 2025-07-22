@@ -23,13 +23,13 @@ export default function App() {
     useEffect(() => {
         async function func() {
             if (!supabase) return;
-            const {data, error} = await supabase.auth.getSession();
+            const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
             if (error) console.error("Error: ", error);
-            if (data && data.session) { // previously saved session, so just have to set up user directly from this, and can continue to usual Home screen (below)
+            if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
                 await setUpUser('log-in', {userId: data.session.user.id}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
                 // ^ as part of this, user ID will be set to saved defined value, so will bypass authentication screen
             }
-            // Else, no previously saved session, so leave userId as-is (undefined); will take user to authentication screen
+            // Else, no previously saved session, so do nothing and leave userId as-is (undefined); will end up taking user to authentication screen
             setCheckedSession(true);
         }
         func();

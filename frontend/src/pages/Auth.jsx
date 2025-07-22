@@ -57,7 +57,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
     const {setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
 
     // Initalise form inputs to empty string (not null), so React knows this is a controlled component (recommended for form inputs):
-    const emptyFormValues = (authType === 1) ? {email: '', password: ''} : {email: '', password: '', company: ''};
+    const emptyFormValues = {email: '', password: '', company: ''}; // note, company is a relic from when I thought it would be good to know; no longer included in form
     const [formValues, setFormValues] = useState(emptyFormValues);
     
     // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
@@ -148,14 +148,15 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
                     <input id="password" name="password" type="password" placeholder={authType === 'sign-up' ? "8+ characters" : "Required"} value={formValues.password} onChange={handleFormChange} />
                 </div>
 
-                {/* Company (if signing up): */}
+                {/* Company (if signing up) (RELIC, NOW COMMENTED OUT AS NOT COLLECTING THIS INFO): 
                 { authType === 'sign-up' ?
                     <div className="form-item">
                         <label htmlFor="company">Company</label>
-                        <input id="company" name="company" type="company" value={formValues.password} onChange={handleFormChange} />
+                        <input id="company" name="company" type="company" value={formValues.company} onChange={handleFormChange} />
                     </div>
                     : null
                 }
+                */}
 
                 <div className="big-buttons-container">
                     <button type="submit" className="accented">Submit</button>
@@ -171,44 +172,43 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 
 /*
 NB: This function is the "single source of truth" for UserContext. It is the only piece of code that
-sets the values (apart from saveDir, which is a constant defined immediately in UserContext):
+sets the values (apart from saveDir, which is a constant defined immediately in UserContext).
+
+Note authType input and getting company from object input are leftovers from when I thought it would be good 
+to collect company info. For now, I'm not going to collect this data.
 */
 export async function setUpUser(authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase) {
 
     const platform = Capacitor.getPlatform();
-    const { userId, email, company } = object; // if authType !== 'sign-up', company will be undefined. No problem, as only userId (always defined) will be used in that case.
+    const { userId, email, company } = object;
     const pdfFolder = `${userId}/pdf`;
     const imageFolder = `${userId}/img`;
 
-    // If user is simply logging in, this whole block is bypassed, as we know they already exist in at least the cloud database (because even if created on mobile, we sync immediately afterwards):
-    if (authType === 'sign-up') {
-        // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it (either way, if on mobile, sync to make sure up to date with cloud):
-        if (platform !== 'web') {
-            await db.run(`
-                INSERT INTO users (id, email, company, created_at, updated_at)
-                VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                ON CONFLICT(id) DO NOTHING
-            `, [userId, email, company]);
-            fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile
-            console.log("WE MUST MAKE SURE FULL SYNC OCCURS HERE. IF NOT, IT COULD LEAD TO ISSUES.")
-        }
-        else {
-            const {error} = await supabase
-                .from('users')
-                .upsert({
-                        id: userId,
-                        email,
-                        company,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                    },
-                    {
-                        onConflict: 'id',
-                        ignoreDuplicates: true,
-                    } // ^ equivalent to ON CONFLICT(id) DO NOTHING (i.e. will NOT update if already exists)
-                );
-            if (error) console.error("Error: ", error);
-        }
+    // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it (either way, if on mobile, sync to make sure up to date with cloud):
+    if (platform !== 'web') {
+        await db.run(`
+            INSERT INTO users (id, email, created_at, updated_at)
+            VALUES (?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(id) DO NOTHING
+        `, [userId, email]);
+        fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile
+        console.log("WE MUST MAKE SURE FULL SYNC OCCURS HERE. IF NOT, IT COULD LEAD TO ISSUES.")
+    }
+    else {
+        const {error} = await supabase
+            .from('users')
+            .upsert({
+                    id: userId,
+                    email,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+                {
+                    onConflict: 'id',
+                    ignoreDuplicates: true,
+                } // ^ equivalent to ON CONFLICT(id) DO NOTHING (i.e. will NOT update if already exists)
+            );
+        if (error) console.error("Error: ", error);
     }
 
     setUserId(userId);
