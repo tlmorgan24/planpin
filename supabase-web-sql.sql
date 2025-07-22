@@ -77,7 +77,6 @@ CREATE TABLE IF NOT EXISTS images (
 
 /* 
 We are setting up nested user_... views, eventually leading back to auth.uid().
-This is the FIRST view that should be created.
 */
 CREATE VIEW user_users
 WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
@@ -85,11 +84,10 @@ WITH (security_invoker = on) AS -- security invoker means RLS of the main tables
   FROM users
   WHERE id = (SELECT auth.uid()); -- "(SELECT auth.uid())" instead of just "auth.uid()" aids performance
 
----- CREATE PLANS VIEW
+---- CREATE CATEGORIES VIEW
 
 /* 
 We are setting up nested user_... views, eventually leading back to auth.uid().
-This is the SECOND view that should be created.
 */
 CREATE VIEW user_categories
 WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
@@ -101,7 +99,6 @@ WITH (security_invoker = on) AS -- security invoker means RLS of the main tables
 
 /* 
 We are setting up nested user_... views, eventually leading back to auth.uid().
-This is the SECOND view that should be created.
 */
 CREATE VIEW user_plans
 WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
@@ -113,7 +110,6 @@ WITH (security_invoker = on) AS -- security invoker means RLS of the main tables
 
 /* 
 We are setting up nested user_... views, eventually leading back to auth.uid().
-This is the THIRD view that should be created.
 */
 CREATE VIEW user_markers
 WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
@@ -125,7 +121,6 @@ WITH (security_invoker = on) AS -- security invoker means RLS of the main tables
 
 /* 
 We are setting up nested user_... views, eventually leading back to auth.uid().
-This is the THIRD view that should be created.
 */
 CREATE VIEW user_images
 WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
