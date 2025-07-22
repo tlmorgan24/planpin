@@ -36,7 +36,7 @@ function PlanProvider({children}) {
     // ^ I have adjusted increment values such that rate is appropriate when doing trackpad pinching/dragging (which, as per my useWheelZoom and useWheelPan effects, causes continuous increments of zoom/scroll)
 
     // clickLocations:
-        // Array of location objects, where each location has properties id, pageNum, x, y (taken from markers database).
+        // Array of location objects, where each location has properties id, pageNum, x, and y (taken from markers table), and color (taken from category in markers table -> color in categories table)
         // x and y will be in pt from top left (rightwards & downwards, respectively), for true-size PDF (independent of zooming).
         // Database will be filtered to the PDF currently being viewed (pdfFileName), so all location objects are for the current PDF.
         // Additional data (e.g. imagePath, description, etc.) is unnecessary for purposes of displaying marker locations, so will only be fetched when a marker is clicked.
@@ -74,7 +74,7 @@ function PlanProvider({children}) {
                 // Get marker data for this plan:
                 const markersResult = await db.query(
                     `
-                        SELECT id, page_number, x, y 
+                        SELECT id, page_number, x, y, category_id
                         FROM markers 
                         WHERE plan_id = ? 
                             AND deleted_at IS NULL
@@ -96,14 +96,14 @@ function PlanProvider({children}) {
                     .eq('pdf_filename', pdfFileName)
                     .eq('user_id', userId)
                     .is('deleted_at', null)
-                    .single(); // assumes one result expected
+                    .single(); // exactly one result expected
                 if (plansError) console.error('Error fetching plan: ', plansError);
                 planId = plansData['id']
 
                 // Get marker data for this plan:
                 const { data: markersData, error: markersError } = await supabase
                     .from('markers')
-                    .select('id, page_number, x, y')
+                    .select('id, page_number, x, y, category_id')
                     .eq('plan_id', planId)
                     .is('deleted_at', null);
                 if (markersError) console.error("Error fetching markers: ", markersError);
@@ -113,11 +113,38 @@ function PlanProvider({children}) {
             
             // markersResultRows will be an array of rows (empty if no rows)
             if (markersResultRows.length > 0) {
-                const loadedClickLocations = markersResultRows.map(row => ({
-                    id: row.id,
-                    pageNum: row.page_number,
-                    x: row.x,
-                    y: row.y,
+                const loadedClickLocations = await Promise.all( markersResultRows.map( async (row) => {
+
+                    // Get marker color according to its category:
+                    let color = null;
+                    if (platform !== 'web') { // on mobile app:
+                        const categoriesResult = await db.query(
+                            `
+                                SELECT color 
+                                FROM categories 
+                                WHERE id = ?
+                            `, 
+                            [row['category_id']]
+                        );
+                        color = categoriesResult.values[0]['color']; 
+                    }
+                    else { // on web:
+                        const {data, error} = await supabase
+                            .from('categories')
+                            .select('color')
+                            .eq('id', row['category_id'])
+                            .single(); // exactly one result expected
+                        color = data['color']; 
+                        if (error) console.error(error);
+                    }
+    
+                    return {
+                        id: row['id'],
+                        pageNum: row['page_number'],
+                        x: row['x'],
+                        y: row['y'],
+                        color: color,
+                    }
                 }));
                 setClickLocations(loadedClickLocations);
             }

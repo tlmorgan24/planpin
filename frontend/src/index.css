@@ -261,7 +261,7 @@ form {
   flex-shrink: 0;
 }
 
-.form-item input, .form-item textarea {
+.form-item input, .form-item textarea, .form-item select {
   min-width: 150px;
   height: 2.5rem;
   padding: 0.5rem;

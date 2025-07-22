@@ -17,11 +17,12 @@ export async function initDb() {
 
     await db.open(); // open database to allow subsequent commands
 
-    await createUsersTable(db);
-    await createPlansTable(db);
-    await createMarkersTable(db);
-    await createImagesTable(db);
-    await createMetaTable(db);
+    await createUsersTable(db); // stores data about each user, e.g. email (one row per user)
+    await createCategoriesTable(db); // 0 or more categories for each user, from which user gets drop-down options to associate with each marker
+    await createPlansTable(db); // stores data about each plan, e.g. owning user and associated pdf filename (0 or more plans per user)
+    await createMarkersTable(db); // stores data about each marker, e.g. owning plan, location, category, etc (0 or more markers per plan)
+    await createImagesTable(db); // stores data about each image, e.g. owning marker, location, etc (0 or more images per marker)
+    await createMetaTable(db); // 1 row for each of above tables, to store timestamp for last pull from cloud (local-only table; not relevant to store in cloud database)
 
     return db
 
@@ -51,7 +52,6 @@ async function createUsersTable(db) {
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
             email TEXT,
-            password TEXT,
             company TEXT,
             country TEXT,
             created_at TIMESTAMP NOT NULL,
@@ -94,6 +94,30 @@ async function createUsersTable(db) {
 
 }
 
+// This table wants to force no more than one of each combination of category_name and user_id (hence, composite primary key):
+async function createCategoriesTable(db) {
+
+    // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
+    const tableCreationStatement = `
+        CREATE TABLE IF NOT EXISTS categories (
+            id TEXT PRIMARY KEY,
+            category_name TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            color TEXT,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL,
+            synced_at TIMESTAMP,
+            deleted_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+    `;
+    const result = await db.execute(tableCreationStatement);
+    if (result.changes && result.changes.changes && result.changes.changes < 0) {
+        throw new Error('Error: execute failed');
+    }
+
+}
+
 async function createPlansTable(db) {
 
     // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
@@ -126,8 +150,8 @@ async function createMarkersTable(db) {
             page_number INTEGER NOT NULL,
             x REAL NOT NULL,
             y REAL NOT NULL,
-            reference TEXT,
-            category TEXT,
+            reference NUMERIC NOT NULL CHECK (reference >= 0),
+            category_id TEXT,
             description TEXT,
             severity INTEGER,
             extent INTEGER,
@@ -135,7 +159,8 @@ async function createMarkersTable(db) {
             updated_at TIMESTAMP NOT NULL,
             synced_at TIMESTAMP,
             deleted_at TIMESTAMP,
-            FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
+            FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
         );
     `;
     const result = await db.execute(tableCreationStatement);
@@ -176,11 +201,11 @@ for cloud database to know what's been deleted, so it can be properly deleted fr
 This means we must make sure that, when querying anything, we should generally add the condition that deleted_at IS NULL
 (otherwise, e.g. markers that are supposed to be deleted will show up, etc.).
 
-On user login, we will clean up local file storage and local database by removing 
-records & files entirely if a record has been marked as deleted for more than 30 days AND EITHER 
-the record is synced with cloud OR the user is a guest (no cloud sync to worry about). See login.jsx.
+When user syncs, we will clean up local file storage and local database by removing 
+records & files entirely if a record has been marked as deleted for more than 14 days AND EITHER 
+the record is synced with cloud OR the user is a guest (no cloud sync to worry about).
 
-We will also (remains to be seen exactly how) clean up the cloud storage in a similar way.
+We also clean up the cloud storage with the same logic.
 */
 
 /* 
@@ -188,12 +213,19 @@ NOTE: the database only stores pdf_filename and image_filename (not full file pa
 (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
 */
 
+/*
+
+--- META TABLE ---
+
+This table will have one record for each combination of table_name and user_id (hence, composite primary key).
+It will be used for tracking the last time the local device pulled up-to-date data from the cloud.
+This table (unlike all the others) does NOT have to exist in the cloud database.
+
+*/
+
 async function createMetaTable(db) {
 
     // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
-    // This table will have one record for each combination of table_name and user_id (hence, composite primary key).
-    // It will be used for tracking the last time the local device pulled up-to-date data from the cloud.
-    // This table (unlike all the others) does NOT have to exist in the cloud database.
     const tableCreationStatement = `
         CREATE TABLE IF NOT EXISTS meta (
             table_name TEXT NOT NULL,

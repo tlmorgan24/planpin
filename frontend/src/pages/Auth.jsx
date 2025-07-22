@@ -24,7 +24,7 @@ export default function Auth() {
     }
 
     async function continueAsGuest() {
-        setUpUser({userId:'guest', email:null, password:null}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
+        setUpUser('log-in', {userId:'guest'}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
     }
 
     return(
@@ -56,12 +56,13 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
     const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
     const {setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
 
-    // Form values:
-    const [formValues, setFormValues] = useState({email: '', password: ''}); // initalise to empty string (not null), so React knows this is a controlled component (recommended for form inputs)
+    // Initalise form inputs to empty string (not null), so React knows this is a controlled component (recommended for form inputs):
+    const emptyFormValues = (authType === 1) ? {email: '', password: ''} : {email: '', password: '', company: ''};
+    const [formValues, setFormValues] = useState(emptyFormValues);
     
     // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
     function closeModal() {
-        setFormValues({email: '', password: ''});
+        setFormValues(emptyFormValues);
         setModalIsOpen(false);
     }
 
@@ -70,14 +71,15 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
         
         e.preventDefault();
 
+        const { company, ...rest } = formValues; // remove company property if exists, as not relevant to supabase.auth methods
         let data = null;
         let error = null;
 
         if (authType === "sign-up") {
-            ({data, error} = await supabase.auth.signUp(formValues));
+            ({data, error} = await supabase.auth.signUp(rest));
         }
         else if (authType === "log-in") {
-            ({data, error} = await supabase.auth.signInWithPassword(formValues));
+            ({data, error} = await supabase.auth.signInWithPassword(rest));
         }
         else {
             console.error("Invalid authentication type");
@@ -118,7 +120,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
         guarantee a signed-up user already exists in the local database
         */
 
-        setUpUser({userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase)
+        setUpUser(authType, {userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase)
 
         closeModal();
 
@@ -137,14 +139,23 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
                 {/* Email: */}
                 <div className="form-item">
                     <label htmlFor="email">Email</label>
-                    <input id="email" name="email" type="email" value={formValues.email} onChange={handleFormChange} />
+                    <input id="email" name="email" type="email" placeholder="Required" value={formValues.email} onChange={handleFormChange} />
                 </div>
 
                 {/* Password: */}
                 <div className="form-item">
                     <label htmlFor="password">Password</label>
-                    <input id="password" name="password" type="password" value={formValues.password} onChange={handleFormChange} />
+                    <input id="password" name="password" type="password" placeholder={authType === 'sign-up' ? "8+ characters" : "Required"} value={formValues.password} onChange={handleFormChange} />
                 </div>
+
+                {/* Company (if signing up): */}
+                { authType === 'sign-up' ?
+                    <div className="form-item">
+                        <label htmlFor="company">Company</label>
+                        <input id="company" name="company" type="company" value={formValues.password} onChange={handleFormChange} />
+                    </div>
+                    : null
+                }
 
                 <div className="big-buttons-container">
                     <button type="submit" className="accented">Submit</button>
@@ -162,39 +173,42 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 NB: This function is the "single source of truth" for UserContext. It is the only piece of code that
 sets the values (apart from saveDir, which is a constant defined immediately in UserContext):
 */
-export async function setUpUser(object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase) {
+export async function setUpUser(authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase) {
 
     const platform = Capacitor.getPlatform();
-    const { userId, email, password } = object;
+    const { userId, email, company } = object; // if authType !== 'sign-up', company will be undefined. No problem, as only userId (always defined) will be used in that case.
     const pdfFolder = `${userId}/pdf`;
     const imageFolder = `${userId}/img`;
 
-    // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it (either way, if on mobile, sync to make sure up to date with cloud):
-    if (platform !== 'web') {
-        await db.run(`
-            INSERT INTO users (id, email, password, created_at, updated_at)
-            VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-            ON CONFLICT(id) DO NOTHING
-        `, [userId, email, password]);
-        fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile - so below, we won't be creating an updated record due to lack of sync
-    }
-    else {
-        const {error} = await supabase
-            .from('users')
-            .upsert({
-                    id: userId,
-                    email,
-                    password,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                },
-                {
-                    onConflict: 'id',
-                    ignoreDuplicates: true,
-                } // ^ equivalent to ON CONFLICT(id) DO NOTHING (i.e. will NOT update if already exists)
-            );
-        if (error) console.error("Error: ", error);
-        // note, we do not 'sync' if we are already on the web (using the cloud), as the cloud is itself the source of truth. It is up to the mobile to sync with cloud when necessary
+    // If user is simply logging in, this whole block is bypassed, as we know they already exist in at least the cloud database (because even if created on mobile, we sync immediately afterwards):
+    if (authType === 'sign-up') {
+        // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it (either way, if on mobile, sync to make sure up to date with cloud):
+        if (platform !== 'web') {
+            await db.run(`
+                INSERT INTO users (id, email, company, created_at, updated_at)
+                VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                ON CONFLICT(id) DO NOTHING
+            `, [userId, email, company]);
+            fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile
+            console.log("WE MUST MAKE SURE FULL SYNC OCCURS HERE. IF NOT, IT COULD LEAD TO ISSUES.")
+        }
+        else {
+            const {error} = await supabase
+                .from('users')
+                .upsert({
+                        id: userId,
+                        email,
+                        company,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    },
+                    {
+                        onConflict: 'id',
+                        ignoreDuplicates: true,
+                    } // ^ equivalent to ON CONFLICT(id) DO NOTHING (i.e. will NOT update if already exists)
+                );
+            if (error) console.error("Error: ", error);
+        }
     }
 
     setUserId(userId);

@@ -1,15 +1,29 @@
 ---- CREATE USERS TABLE
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY,
   email TEXT,
-  password TEXT,
   company TEXT,
   country TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   -- note, no synced_at, as this is only relevant locally on a per-device basis
   deleted_at TIMESTAMPTZ
+);
+
+---- CREATE CATEGORIES TABLE
+
+CREATE TABLE IF NOT EXISTS categories (
+  id UUID PRIMARY KEY,
+  category_name TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  color TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  -- note, no synced_at, as this is only relevant locally on a per-device basis
+  deleted_at TIMESTAMPTZ,
+  PRIMARY KEY (category_name, user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 ---- CREATE PLANS TABLE
@@ -27,14 +41,14 @@ CREATE TABLE IF NOT EXISTS plans (
 
 ---- CREATE MARKERS TABLE
 
-CREATE TABLE markers (
+CREATE TABLE IF NOT EXISTS markers (
   id UUID PRIMARY KEY,
   plan_id UUID NOT NULL,
   page_number INTEGER NOT NULL,
   x REAL NOT NULL,
   y REAL NOT NULL,
-  reference TEXT,
-  category TEXT,
+  reference NUMERIC NOT NULL CHECK (reference >= 0),
+  category_id UUID,
   description TEXT,
   severity INTEGER,
   extent INTEGER,
@@ -42,7 +56,8 @@ CREATE TABLE markers (
   updated_at TIMESTAMPTZ DEFAULT now(),
   -- note, no synced_at, as this is only relevant locally on a per-device basis
   deleted_at TIMESTAMPTZ,
-  FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
+  FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE,
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
 ---- CREATE IMAGES TABLE
@@ -69,6 +84,18 @@ WITH (security_invoker = on) AS -- security invoker means RLS of the main tables
   SELECT *
   FROM users
   WHERE id = (SELECT auth.uid()); -- "(SELECT auth.uid())" instead of just "auth.uid()" aids performance
+
+---- CREATE PLANS VIEW
+
+/* 
+We are setting up nested user_... views, eventually leading back to auth.uid().
+This is the SECOND view that should be created.
+*/
+CREATE VIEW user_categories
+WITH (security_invoker = on) AS -- security invoker means RLS of the main tables is inherited by the views
+  SELECT c.*
+  FROM categories c
+  JOIN user_users u ON c.user_id = u.id;
 
 ---- CREATE PLANS VIEW
 
@@ -121,6 +148,22 @@ USING (
 )
 WITH CHECK (
     id = (SELECT auth.uid())
+);
+
+---- CREATE CATEGORIES POLICY (to allow authenticated users to access their own records, and allow nobody else to access them)
+
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY categories_policy
+ON public.categories
+AS PERMISSIVE
+FOR ALL
+TO authenticated
+USING (
+    user_id = (SELECT auth.uid())
+)
+WITH CHECK (
+    user_id = (SELECT auth.uid())
 );
 
 ---- CREATE PLANS POLICY (to allow authenticated users to access their own records, and allow nobody else to access them)

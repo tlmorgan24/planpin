@@ -26,9 +26,7 @@ export default function App() {
             const {data, error} = await supabase.auth.getSession();
             if (error) console.error("Error: ", error);
             if (data && data.session) { // previously saved session, so just have to set up user directly from this, and can continue to usual Home screen (below)
-
-                const object = {userId: data.session.user.id, email:data.session.user.email, password:''} // note, email and password don't matter anyway, as we won't be inserting a new record, as we know user already exists
-                await setUpUser(object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
+                await setUpUser('log-in', {userId: data.session.user.id}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
                 // ^ as part of this, user ID will be set to saved defined value, so will bypass authentication screen
             }
             // Else, no previously saved session, so leave userId as-is (undefined); will take user to authentication screen
