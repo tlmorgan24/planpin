@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext } from "react";
 import { toast } from 'sonner';
 import { Filesystem } from "@capacitor/filesystem";
 import { DbContext, UserContext } from "./main";
@@ -782,81 +782,26 @@ This is like the above clean up functions, but hard deletes absolutely everythin
 */
 
 export async function wipeAll(supabase, sqliteDb, userId, saveDir) {
-    await wipeLocalDb(sqliteDb, userId);
-    await wipeLocalFiles(sqliteDb, userId, saveDir);
+    if (sqliteDb) { // if on native mobile app
+        await wipeLocalDb(sqliteDb, userId);
+        await wipeLocalFiles(userId, saveDir);
+    }
+    // Even if on native mobile, still must wipe cloud database too:
     await wipeCloudDb(supabase, userId);
     await wipeCloudFiles(supabase, userId);
 }
 
 async function wipeLocalDb(db, userId) {
 
-    // --- SELECT ---
-
-    // Obtain the records to be deleted:
-
-    /*
-    To only select records associated with relevant user ID, need to do some joins, as images table only 
-    links to user_id through a foreign key chain through markers and plans tables (no direct user_id column):
-    */
-    const imagesResult = await db.query(`
-        SELECT i.id, i.image_filename
-        FROM images i
-        JOIN markers m ON i.marker_id = m.id
-        JOIN plans p ON m.plan_id = p.id
-        WHERE p.user_id = ?
-    `, [userId]);
-    const imageIds = imagesResult.values.map(row => row['id']);
-    const imageFileNames = imagesResult.values.map(row => row['image_filename']);
-
-    const markersResult = await db.query(`
-        SELECT m.id
-        FROM markers m
-        JOIN plans p ON m.plan_id = p.id
-        WHERE p.user_id = ?
-    `, [userId]);
-    const markerIds = markersResult.values.map(row => row['id']);
-
-    const plansResult = await db.query(`
-        SELECT id, pdf_filename 
-        FROM plans 
-        WHERE user_id = ? 
-    `, [userId]);
-    const planIds = plansResult.values.map(row => row['id']);
-    const pdfFileNames = plansResult.values.map(row => row['pdf_filename']);
-
-    // --- DELETE FROM DATABASE ---
-
-    // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist. Etc. going up the tree.
-
-    if (imageIds.length > 0) {
-        const imageValuesPlaceholder = imageIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
-        await db.run(`
-            DELETE FROM images
-            WHERE id IN (${imageValuesPlaceholder})
-        `, imageIds);
-    }
-
-    if (markerIds.length > 0) {
-        const markerValuesPlaceholder = markerIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
-        await db.run(`
-            DELETE FROM markers
-            WHERE id IN (${markerValuesPlaceholder})
-        `, markerIds);
-    }
-
-    if (planIds.length > 0) {
-        const planValuesPlaceholder = planIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
-        await db.run(`
-            DELETE FROM plans
-            WHERE id IN (${planValuesPlaceholder})
-        `, planIds);
-    }
-
-    return { pdfFileNames, imageFileNames } // for deletion from filesystem
+    // Thanks to ON DELETE CASCADE set up, only have to delete from users table itself, and all relevant records will be deleted from child tables:
+    await db.run(`
+        DELETE FROM users
+        WHERE id = ?)
+    `, userId);
 
 }
 
-async function wipeLocalFiles(db, userId, saveDir) {
+async function wipeLocalFiles(userId, saveDir) {
 
     await Filesystem.rmdir({
         path: userId, // folder to remove
@@ -870,62 +815,12 @@ async function wipeCloudDb(supabase, userId) {
 
     if (userId === 'guest') return; // guest account data is never synced
 
-    // ------ SELECT ------
-
-    // Obtain the records to be deleted:
-
-    // --- IMAGES ---
-
-    const { data: imagesData, error: imagesError } = await supabase
-        .from('user_images') // already filtered to current user
-        .select('id');
-    if (imagesError) console.error("Error: ", imagesError);
-    const imageIds = imagesData.map(row => row['id']);
-
-    // --- MARKERS ---
-
-    const { data: markersData, error: markersError } = await supabase
-        .from('user_markers') // already filtered to current user
-        .select('id');
-    if (markersError) console.error("Error: ", markersError);
-    const markerIds = markersData.map(row => row['id']);
-
-    // --- PLANS ---
-
-    const { data: plansData, error: plansError } = await supabase
-        .from('user_plans') // already filtered to current user
-        .select('id');
-    if (plansError) console.error("Error: ", plansError);
-    const planIds = plansData.map(row => row['id']);
-
-
-    // ------ DELETE FROM DATABASE ------
-
-    // Delete the records obtained above from cloud database:
-
-    if (imageIds.length > 0) {
-        const { error } = await supabase
-            .from('images')
-            .delete()
-            .in('id', imageIds);
-        if (error) console.error("Error: ", error);
-    }
-
-    if (markerIds.length > 0) {
-        const { error } = await supabase
-            .from('markers')
-            .delete()
-            .in('id', markerIds);
-        if (error) console.error("Error: ", error);
-    }
-
-    if (planIds.length > 0) {
-        const { error } = await supabase
-            .from('plans')
-            .delete()
-            .in('id', planIds);
-        if (error) console.error("Error: ", error);
-    }
+    // Thanks to ON DELETE CASCADE set up, only have to delete from users table itself, and all relevant records will be deleted from child tables:
+    const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+    if (error) console.error("Error: ", error);
 
 }
 
