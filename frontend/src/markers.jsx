@@ -3,17 +3,19 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { PlanContext } from "./pages/Plan";
 import { DbContext, UserContext } from "./main";
+import { AppContext } from "./App";
 import Modal from 'react-modal';
 import { captureImage, saveImage, getImageUri, getSupabaseImageUri } from "./image-setup";
 import Loading from "./pages/Loading";
 import ConfirmModal from "./ConfirmModal";
+import { ManageCategoriesButton } from "./categories";
 
 // ---- MARKER COMPONENT ----
 
 // Creates marker at specified canvas location (where canvasX and canvasY are from top left of canvas in CS px):
 // This marker will be used to show the user's click locations on the plan.
-// categoryName not yet used, but the infrastructure to provide it to this component is in place, so can add feature to e.g. show category name on hover.
-function Marker({ id, canvasX, canvasY, color, categoryName, setClickedId }) {
+// category_name not yet used, but the infrastructure to provide it to this component is in place, so can add feature to e.g. show category name on hover.
+function Marker({ id, canvasX, canvasY, color, category_name, setClickedId }) {
     
     // CSS incorporated here rather than in .css file, due to dynamic nature of positioning and the fact that it is dependent on width & height.
     const width = 10; // px
@@ -81,8 +83,8 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
     return(                        
         <div ref={markerLayerRef} className="marker-layer" onClick={handleClick}>
             {/* Render markers according to latest markerLocations: */}
-            {markerLocations.map(({ id, canvasX, canvasY, color, categoryName }) => (
-                <Marker key={id} id={id} canvasX={canvasX} canvasY={canvasY} color={color} categoryName={categoryName} setClickedId={setClickedId} />
+            {markerLocations.map(({ id, canvasX, canvasY, color, category_name }) => (
+                <Marker key={id} id={id} canvasX={canvasX} canvasY={canvasY} color={color} category_name={category_name} setClickedId={setClickedId} />
             ))}
             {/* Marker form modal to pop up when user wants to add a marker: */}
             <FormModal clickedId={clickedId} setClickedId={setClickedId} clickLocations={clickLocations} setClickLocations={setClickLocations} planId={planId} db={db} supabase={supabase} />
@@ -105,7 +107,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
     */
 
-    const {userId, saveDir, imageFolder} = useContext(UserContext);
+    const {saveDir, imageFolder} = useContext(UserContext);
+    const {categoryOptionsData} = useContext(AppContext); // options for category data to assign to marker (populated based off categories table of database for this user). Array of objects, each with an id, category_name and color property
 
     const [imageIds, setImageIds] = useState([]); // will be array of file names for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
     const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imageFileNames
@@ -114,17 +117,13 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     
     const [loading, setLoading] = useState(false); // to allow modal to show a loading icon when this is set to true (note we opt for manual loading instead of just a toast, so that we can prevent the user seeing & interacting with the form modal while it is loading/submitting)
     const [imagesToLoad, setImagesToLoad] = useState(0); // number of images remaining to load before we can set loading to false (will be set to number of imageUris)
-    
-    const [categoryOptionsData, setCategoryOptionsData] = useState([]); // options for category data to assign to marker (will be populated based off categories table of database for this user). Will be array of objects, each with an id, category_name and color property
-    const [categoryModalIsOpen, setCategoryModalIsOpen] = useState(false); // to open a modal within this modal, to add/edit a category (i.e. NOT referring to this modal itself)
-    const [categoryId, setCategoryId] = useState(null); // to enable passing category ID to abovementioned Category modal (note, this state is only used for said purposes, not for marker modal itself, which gets categoryId when needed directly from database)
 
     const textAreaRef = useRef(null); // HTML textarea element used for description (we have to useRef to enable auto-resizing as part of handleTextAreaChange below)
 
     // Form values (if marker already exists in database, will be set to existing database values in below useEffect):
     const [formValues, setFormValues] = useState({reference: '', categoryId: '', description: '', severity: '', extent: ''});
 
-    const [isOpen, setIsOpen] = useState(false); // whether THIS modal is open or not
+    const [isOpen, setIsOpen] = useState(false); // whether this modal is open or not
 
     // Open form on change of clickedId (meaning user has just added a marker or clicked on an existing marker):
     useEffect(() => {
@@ -144,35 +143,6 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             const platform = Capacitor.getPlatform();
 
-            // Get category options from categories table of database
-
-            if (platform !== 'web') { // on mobile
-                const categoriesResult = await db.query(
-                    `
-                        SELECT id, category_name, color
-                        FROM categories
-                        WHERE user_id = ?
-                            AND deleted_at IS NULL
-                    `, 
-                    [userId]
-                );
-                if (categoriesResult.values.length > 0) {
-                    setCategoryOptionsData(categoriesResult.values);
-                }
-            }
-
-            else { // on web
-                const { data, error } = await supabase
-                    .from('user_categories')
-                    .select('id, category_name, color')
-                    .eq('user_id', userId)
-                    .is('deleted_at', null);
-                if (error) console.error('Error: ', error);
-                if (data.length > 0) {
-                    setCategoryOptionsData(data);
-                }
-            }
-
             // Get current data to set form values to (if marker already exists in database):
 
             let row = null;
@@ -181,12 +151,14 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             if (platform !== 'web') { // on mobile
 
-                // Get maximum reference (including of all deleted markers, to prevent misleading duplicates):
+                // Get maximum reference for this plan (including of all deleted markers, to prevent misleading duplicates):
                 const maxResult = await db.query(
                     `
                         SELECT MAX(reference) AS max_reference
                         FROM markers
-                    `
+                        WHERE plan_id = ?
+                    `,
+                    [planId]
                 );
                 if (maxResult.values.length > 0) {
                     maxRefNo = maxResult.values[0]['max_reference'];
@@ -216,10 +188,11 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
             else { // on web
 
-                // Get maximum reference (including of all deleted markers, to prevent misleading duplicates):
+                // Get maximum reference for this plan (including of all deleted markers, to prevent misleading duplicates):
                 const { maxData, maxError } = await supabase
                     .from('user_markers')
                     .select('reference')
+                    .eq('plan_id', planId)
                     .order('reference', { ascending: false }) // no max function in supabase client, so must order descending and get first result
                     .limit(1);
                 if (maxError) console.error('Error: ', maxError);
@@ -467,7 +440,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
         */
 
         let color = null;
-        let categoryName = null;
+        let category_name = null;
 
         if (categoryId) {
 
@@ -481,7 +454,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     [categoryId]
                 );
                 color = categoriesResult.values[0]['color']; 
-                categoryName = categoriesResult.values[0]['category_name']
+                category_name = categoriesResult.values[0]['category_name']
             }
 
             else { // on web
@@ -492,13 +465,13 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     .single(); // exactly one result expected
                 if (error) console.error('Error: ', error);
                 color = data['color']; 
-                categoryName = data['category_name'];
+                category_name = data['category_name'];
             }
         
         }
 
         const updatedClickLocations = clickLocations.map(loc => 
-            loc.id === clickedId ? { ...loc, color, categoryName } : loc
+            loc.id === clickedId ? { ...loc, color, category_name } : loc
         );
         setClickLocations(updatedClickLocations);
 
@@ -524,9 +497,22 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     };
 
     return(
-        <Modal className={{base: 'side-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={isOpen} onRequestClose={onRequestClose} >
+        <Modal 
+            className={{base: 'side-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} 
+            closeTimeoutMS={300} 
+            isOpen={isOpen} 
+            onRequestClose={onRequestClose}
+            style={{
+                overlay: { zIndex: 1000 },
+                content: { zIndex: 1001 }
+            }}
+        >
 
             {/* 
+            Note, we are giving this modal a high z-index (1000), so it stacks above generic page content. This will be our
+            LOWEST-STACKED modal. Other modals we want to open at the same time and stack on top (e.g. categories manager)
+            will have higher z-index (1100, 1200, etc.).
+            
             Note, we are giving it the class 'side-modal' in all cases, and a second class 'show' if modal is open.
             This allows us to create a smooth CSS transition to pop out the modal.
 
@@ -560,7 +546,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                             <option key={row['id']} value={row['id']}>{row['category_name']}</option> // ensures IDs are stored as form values, but category NAMES are what are actually shown to user
                         ))}
                     </select>
-                    <ManageCategoryButton categoryId={formValues.categoryId} setCategoryId={setCategoryId} setCategoryModalIsOpen={setCategoryModalIsOpen} />
+                    <ManageCategoriesButton />
                 </div>
 
                 {/* Brief description of item, e.g. "2mm horizontal crack to internal wall" (uses textarea instead of input, to allow spilling over multiple lines): */}
@@ -605,9 +591,6 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 </div>
 
             </form>
-
-            {/* Note, CategoryModal must come outside the <form>, as it also contains a <form>. Nested forms are not allowed. */}
-            <CategoryModal isOpen={categoryModalIsOpen} closeModal={() => {setCategoryModalIsOpen(false)}} categoryId={categoryId} setCategoryOptionsData={setCategoryOptionsData} />
             
         </Modal>
     );
@@ -789,151 +772,6 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
 
 }
 
-function ManageCategoryButton({ categoryId, setCategoryId, setCategoryModalIsOpen }) {
-
-    function handleClick() {
-        setCategoryId(categoryId); // note categoryId may be null, empty string or UUID here
-        setCategoryModalIsOpen(true);
-    }
-
-    return (
-        <button type="button" onClick={handleClick}>Manage</button>
-    )
-}
-
-// If categoryId is not passed to this modal, we will create a new category, otherwise we will edit the existing category associated with that ID:
-function CategoryModal({ isOpen, closeModal, categoryId, setCategoryOptionsData }) {
-
-    const {userId} = useContext(UserContext);
-    const {db, supabase} = useContext(DbContext);
-    const [formValues, setFormValues] = useState({category_name: '', color: ''});
-
-    // Set form values (category name and color) to current database data (if categoryId parameter is passed)
-    useEffect(() => {
-        async function func() {
-
-            if (!isOpen) return; // only run when modal opens
-
-            // If creating new category, ensure form values reset to empty (in case may have been re-opened with stale values):
-            if (!categoryId) {
-                setFormValues({ category_name: '', color: '' });
-                return;
-            }
-            
-            let row = null;
-            if (Capacitor.getPlatform() !== 'web') { // on mobile
-                const categoriesResult = await db.query(
-                    `
-                        SELECT category_name, color
-                        FROM categories
-                        WHERE id = ? 
-                    `, 
-                    [categoryId]
-                );
-                row = categoriesResult.values[0];
-            }
-            else { // on web
-                const {data, error} = await supabase
-                    .from('categories')
-                    .select('category_name, color')
-                    .eq('id', categoryId);
-                if (error) console.error(error);
-                row = data[0];
-            }
-
-            setFormValues(row);
-
-        }
-        func();
-    }, [categoryId, isOpen]);
-
-    async function handleSubmit(e) {
-
-        e.preventDefault();
-
-        let existing = true;
-        if (!categoryId) {
-            existing = false;
-            categoryId = crypto.randomUUID(); // Generate new random UUID for new category, so there will be no primary key conflict (the try/catch below is just to catch generic unexpected errors)
-        }
-
-        try {
-
-            if (Capacitor.getPlatform() !== 'web') { // on mobile
-                await db.run(
-                    `
-                        INSERT INTO categories (id, category_name, user_id, color, created_at, updated_at) 
-                        VALUES (?, ?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                        ON CONFLICT(id) DO UPDATE SET
-                            color = excluded.color,
-                            updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-                    `,
-                    [categoryId, formValues.category_name, userId, formValues.color]
-                );
-            }
-
-            else { // on web
-                const {error} = await supabase
-                    .from('categories')
-                    .upsert(
-                        {
-                            id: categoryId,
-                            category_name: formValues.category_name,
-                            user_id: userId,
-                            color: formValues.color,
-                            updated_at: new Date().toISOString(),
-                            // no need for created_at, as supabase makes this default to now anyway if it is a new record
-                        },
-                        {onConflict: 'id'}
-                    ); 
-                if (error) throw error;
-            }
-
-            if (!existing) { // append new entry to categoryOptionsData:
-                setCategoryOptionsData(prev => [...prev, {id: categoryId, category_name: formValues.category_name, color: formValues.color}]);
-            }
-            else { // edit existing entry of categoryOptionsData:
-                setCategoryOptionsData(prev => prev.map(category => 
-                    category.id === categoryId 
-                        ? { ...category, category_name: formValues.category_name, color: formValues.color } 
-                        : category
-                ));
-            }
-            closeModal();
-
-        } catch (error) {
-            console.error(error);
-            toast.error("Something went wrong")
-            // leave modal open
-        }
-
-    }
-
-    function handleFormChange(event) {
-        const { name, value } = event.target;
-        setFormValues((prevState) => ({ ...prevState, [name]: value }));
-    };
-
-    return (
-        <Modal className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={isOpen} onRequestClose={closeModal} >
-            <form onSubmit={handleSubmit} >
-                <div className="form-item">
-                    <label htmlFor="category_name">Category</label>
-                    <input id="category_name" name="category_name" type="text" required value={formValues.category_name} onChange={handleFormChange} />
-                </div>
-                <div className="form-item">
-                    <label htmlFor="color">Colour</label>
-                    <input id="color" name="color" type="color" value={formValues.color} onChange={handleFormChange} />
-                </div>
-                <div className="big-buttons-container">
-                    <button type="submit" className="accented">Submit</button>
-                    <button type="button" onClick={closeModal}>Cancel</button>
-                </div>
-            </form>
-        </Modal>
-    )
-}
-
 
 // ---- ADD & SHOW MARKERS ----
 
@@ -959,7 +797,7 @@ async function addMarker(e, mapping, drawnWindow, pageNum, setClickLocations, se
     const {pdfX, pdfY} = mapCanvasToPDF(canvasX, canvasY, mapping); // from top left in true-size pt
     
     // Add to clickLocations:
-    const newClickLocation = { id:id, pageNum: pageNum, x: pdfX, y: pdfY, color: null, categoryName: null }; // some values initially null, as at this point, form modal has not yet popped out for user to choose a category
+    const newClickLocation = { id:id, pageNum: pageNum, x: pdfX, y: pdfY, color: null, category_name: null }; // some values initially null, as at this point, form modal has not yet popped out for user to choose a category
     setClickLocations(prev => [...prev, newClickLocation]); // add newClickLocation to clickLocations state
     // ^ This will automatically cause marker to be added to canvas, because clickLocations and is a dep for MarkerLayer's useEffect block (which calls drawMarkers below)
     setClickedId(id);
@@ -979,10 +817,10 @@ export function drawMarkers(canvas, mapping, pageNum, clickLocations, setMarkerL
                 const id = loc.id; // Unique ID from database
                 const {canvasX, canvasY} = mapPDFToCanvas(loc.x, loc.y, mapping); // convert PDF coordinates back to canvas coordinates (from top left, in CSS px)
                 const color = loc.color; // marker color (as associated with category)
-                const categoryName = loc.categoryName;
+                const category_name = loc.category_name;
                 // Create HTML element for marker only if within canvas:
                 if (canvasX >=0 && canvasX <= canvas.clientWidth && canvasY >= 0 && canvasY <= canvas.clientHeight) {
-                    newMarkerLocations.push({ id, canvasX, canvasY, color, categoryName });
+                    newMarkerLocations.push({ id, canvasX, canvasY, color, category_name });
                 }
             }
         });

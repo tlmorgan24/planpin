@@ -96,12 +96,12 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
                 return;
             }
             else if (error.code === 'user_already_exists') {
-                toast.info("User already exists. Please log in instead of signing up.");
+                toast.info("User already exists. If you have signed up before, please go back and select \"Log in\" instead of \"Sign up\".");
                 return;
             }
             // Login-related errors:
             else if (error.code === 'invalid_credentials') {
-                toast.error("Invalid credentials. Please try again.");
+                toast.error("Invalid credentials. Please try again, or if you are new, go back and select \"Sign up\" instead of \"Log in\".");
                 return;
             }
             else if (error.code === 'email_not_confirmed') {

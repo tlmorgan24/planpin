@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, createContext } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Toaster } from 'sonner';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
@@ -10,6 +10,33 @@ import Auth from './pages/Auth';
 import Loading from './pages/Loading';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import SettingsModal from './SettingsModal';
+import { CategoriesModal } from './categories';
+
+
+// -- CONTEXT VARIABLES --
+
+// Define context object:
+export const AppContext = createContext();
+
+// Define context provider:
+function AppProvider({children}) {
+
+    const [settingsOpen, setSettingsOpen] = useState(false); // to allow "settings" modal to pop out when desired
+    const [categoriesOpen, setCategoriesOpen] = useState(false); // to allow "manage categories" modal to pop out when desired
+    const [categoryOptionsData, setCategoryOptionsData] = useState([]); // options for category data to assign to marker (populated based off categories table of database for this user). Array of objects, each with an id, category_name and color property
+
+    return (
+        <AppContext.Provider value={{
+            settingsOpen, setSettingsOpen,
+            categoriesOpen, setCategoriesOpen,
+            categoryOptionsData, setCategoryOptionsData,
+        }}>
+        {children}
+        </AppContext.Provider>
+    );
+}
+
 
 // -- APP --
 
@@ -51,14 +78,18 @@ export default function App() {
     */
         else {
             content = (
-                <BrowserRouter>
-                    <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/plan" element={<Plan />} />
-                        <Route path="/contact" element={<Contact />} />
-                        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                    </Routes>
-                </BrowserRouter>
+                <AppProvider>
+                    <BrowserRouter>
+                        <Routes>
+                            <Route path="/" element={<Home />} />
+                            <Route path="/plan" element={<Plan />} />
+                            <Route path="/contact" element={<Contact />} />
+                            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                        </Routes>
+                        <SettingsModal />
+                        <CategoriesModal />
+                    </BrowserRouter>
+                </AppProvider>
             );
         }
     }

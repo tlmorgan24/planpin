@@ -117,7 +117,7 @@ function PlanProvider({children}) {
 
                     // Get marker color according to its category:
                     let color = null;
-                    let categoryName = null;
+                    let category_name = null;
                     if (row['category_id']) { // noting category_id may be null (if no category is associated with marker)
                         if (platform !== 'web') { // on mobile app:
                             const categoriesResult = await db.query(
@@ -129,7 +129,7 @@ function PlanProvider({children}) {
                                 [row['category_id']]
                             );
                             color = categoriesResult.values[0]['color']; 
-                            categoryName = categoriesResult.values[0]['category_name'];
+                            category_name = categoriesResult.values[0]['category_name'];
                         }
                         else { // on web:
                             const {data, error} = await supabase
@@ -138,7 +138,7 @@ function PlanProvider({children}) {
                                 .eq('id', row['category_id'])
                                 .single(); // exactly one result expected
                             color = data['color']; 
-                            categoryName = data['category_name'];
+                            category_name = data['category_name'];
                             if (error) console.error(error);
                         }
                     }
@@ -149,7 +149,7 @@ function PlanProvider({children}) {
                         x: row['x'],
                         y: row['y'],
                         color,
-                        categoryName,
+                        category_name,
                     }
                 }));
                 setClickLocations(loadedClickLocations);

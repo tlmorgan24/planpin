@@ -1,14 +1,13 @@
 import { useContext, useState, useRef, useEffect, createContext } from "react";
-import Modal from 'react-modal';
 import ConfirmModal from "../ConfirmModal";
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
+import { AppContext } from "../App";
 import { PageCanvas } from "../pdf-render";
 import { getPdfObjects, saveFile } from '../pdf-setup';
 import { DbContext, UserContext } from "../main";
 import { SyncButton, saveBlobToSupabase } from "../sync";
-import { logOut, deleteAccount } from "./Auth";
 
 
 // -- CONTEXT VARIABLES --
@@ -21,8 +20,8 @@ function HomeProvider({children}) {
 
     const {userId, pdfFolder, saveDir} = useContext(UserContext);
     const {db, supabase} = useContext(DbContext);
+
     const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
-    const [settingsOpen, setSettingsOpen] = useState(false); // to allow settings modal to pop out when desired
 
     async function refreshPdfObjects() {
 
@@ -71,7 +70,6 @@ function HomeProvider({children}) {
     return (
         <HomeContext.Provider value={{
             pdfObjects, refreshPdfObjects,
-            settingsOpen, setSettingsOpen,
         }}>
             {children}
         </HomeContext.Provider>
@@ -98,7 +96,6 @@ export default function Home() {
                 We will apply common styling to it as other thumbnails, making it fit nicely in the layout so that
                 the input button, with its location/sizing, is showing you exactly where the added PDF will go.
                 */}
-                <SettingsModal />
             </div>
         </HomeProvider>
     );
@@ -115,7 +112,7 @@ function RefreshPlansButton() {
 }
 
 function SettingsButton() {
-    const {setSettingsOpen} = useContext(HomeContext);
+    const {setSettingsOpen} = useContext(AppContext);
     function handleClick() {
         setSettingsOpen(true);
     }
@@ -441,55 +438,4 @@ function PDFDeleteButton({fileName}) {
         </>
     );
 
-}
-
-
-// ---- SETTINGS ----
-
-function SettingsModal() {
-
-    const { userId, setUserId } = useContext(UserContext);
-    const { db, supabase } = useContext(DbContext);
-    const { saveDir } = useContext(HomeContext);
-    const { settingsOpen, setSettingsOpen } = useContext(HomeContext);
-
-    const [showConfirm, setShowConfirm] = useState(false); // to allow confirmation modal to be shown before deleting account
-    const confirmationMessage = 'If you proceed, your account and all its associated data (including PDFs, images and defect information) will be permanently deleted. This action is immediate and irreversible.'
-
-    function closeSettings() {
-        setSettingsOpen(false);
-    }
-    async function logOutUser() {
-        await logOut(supabase, setUserId);
-    }
-    async function deleteUserAccount() {
-        setShowConfirm(false);
-        await deleteAccount(supabase, db, userId, setUserId, saveDir);
-    }
-
-    function onRequestDelete() {
-        setShowConfirm(true); // when user clicks "Delete account" button, show confirmation modal
-    }
-    function onCancelDelete() {
-        setShowConfirm(false);
-    }
-
-    return (
-        <Modal className={{base: 'side-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={settingsOpen} onRequestClose={closeSettings}>
-            <div className="big-buttons-container">
-                <button type="button" onClick={logOutUser}>Log out</button>
-                <button type="button" onClick={closeSettings}>Close</button>
-                <button type="button" className="bad" onClick={onRequestDelete}>Delete account</button>
-            </div>
-            <p>
-                <a href="/contact">Contact</a><br/>
-                <a href="/privacy-policy">Privacy policy</a>
-            </p>
-            {/* 
-            When user clicks "Delete account" button, we show confirmation modal. 
-            If user THEN clicks confirm on the confirmation modal, we proceed to delete the account.
-            */}
-            <ConfirmModal message={confirmationMessage} isOpen={showConfirm} onConfirm={deleteUserAccount} onCancel={onCancelDelete}/>
-        </Modal>
-    );
 }
