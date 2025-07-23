@@ -32,10 +32,6 @@ function PlanProvider({children}) {
     // scrollX = rightwards scroll in true-size PDF pt, where 0 means left-aligned (initialised to 0)
     // scrollY = downwards scroll in true-size PDF pt, where 0 means top-aligned (initialised to 0)
 
-    const [zoomIncrement, setZoomIncrement] = useState(1.04); // zoom increment factor
-    const [scrollIncrement, setScrollIncrement] = useState(6); // absolute scroll increment in PDF pt, which will be divided by zoom factor (for finer scrolling when zoomed in)
-    // ^ I have adjusted increment values such that rate is appropriate when doing trackpad pinching/dragging (which, as per my useWheelZoom and useWheelPan effects, causes continuous increments of zoom/scroll)
-
     // clickLocations:
         // Array of location objects, where each location has properties id, pageNum, x, and y (taken from markers table), and color (taken from category in markers table -> color in categories table)
         // x and y will be in pt from top left (rightwards & downwards, respectively), for true-size PDF (independent of zooming).
@@ -168,8 +164,6 @@ function PlanProvider({children}) {
         numPages, setNumPages,
         pageNum, setPageNum,
         interactionState, setInteractionState,
-        zoomIncrement, setZoomIncrement,
-        scrollIncrement, setScrollIncrement,
         clickLocations, setClickLocations,
         }}>
             {children}

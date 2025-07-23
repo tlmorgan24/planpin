@@ -9,8 +9,8 @@
 
   --hovering-background-color: #e0e0e0;
 
-  --bad-background-color: #ebaeae;
-  --bad-hovering-background-color: #db9191;
+  --bad-background-color: #efb9b9;
+  --bad-hovering-background-color: #e1a6a6;
   --bad-foreground-color: #830505;
 
   --good-background-color: #b8e2bd;
@@ -49,7 +49,7 @@ If content-box (default) was used instead of border-box, then padding etc. would
 
 html, body {
   padding: 0;
-  margin: 0; /* note, our intended "body margin" is applied to safe-area-container instead of body itself */ 
+  margin: 0; /* note, our intended "body margin" is applied to safe-area-container instead of body itself */
   background-color: var(--primary-color);
   color: var(--inverse-primary-color);
 }
@@ -60,7 +60,7 @@ a {
 
 /* Top-level containers: */
 
-.home-container, .plan-container, .auth-container, .contact-container, .privacy-policy-container {
+.home-container, .plan-container, .auth-container, .contact-container, .privacy-policy-container, .loading-container {
   position: relative; /* set to relative to allow it to be a containing block for children */
   overflow-y: auto;
   width: 100%;
@@ -86,7 +86,7 @@ markerLayer fill entirety of pageCanvas.
   position: relative;
   overflow: hidden;
   width: var(--usable-width);
-  border: 1px solid var(--accent-color);
+  border: 2px solid var(--accent-color);
   flex-grow: 1;
   flex-shrink: 1;
 }
@@ -135,7 +135,7 @@ markerLayer fill entirety of pageCanvas.
   max-width: 250px;
   aspect-ratio: 1 / 1; /* always square */
   overflow: hidden;
-  border: 1px solid var(--accent-color);
+  border: 2px solid var(--accent-color);
   border-radius: 10px;
   /* If possible within min/max width, aim for 2 items per line, but no flex-grow, as otherwise a lone thumbnail on its row will grow bigger than the other thumbnails: */
   flex: 0 1 calc(49% - var(--thumbnail-gap)); 
@@ -278,7 +278,7 @@ form {
   flex-grow: 1; /* input fills entire width left over after label */
 }
 
-/* Buttons */
+/* Buttons: */
 
 button {
   padding-top: 5px;
@@ -376,4 +376,23 @@ means we can simply set the buttons to be positioned at the bottom left and righ
 #next-page-button {
   right: 0;
   border-top-right-radius: 0;
+}
+
+/* Loading spinner: */
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--inverse-primary-color);
+  border-top-color: var(--secondary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 20px;
+  margin-bottom: 5px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

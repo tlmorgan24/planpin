@@ -4,10 +4,6 @@ import { mapEventToCanvas, mapCanvasToPDF } from "./markers";
 import { useWheel, useCtrlWheel, useTouchDrag, useTouchPinch } from "./custom-listeners";
 
 
-// ********** NOTE: IT IS NOT A GREAT IDEA THAT SCROLL IS RELATED TO ABSOLUTE TRUE-SIZE PDF RATHER THAN PROPORTION OF ITS (WIDTH + HEIGHT)/2
-// Because currently, with a tiny PDF, the slightest scroll could go beyond the PDF's bounds.
-
-
 // Canvas of desired CSS class (defining size etc.) onto which desired page of PDF is drawn with desired zoom/scroll:
 // page is page number to draw (1 to draw first page of PDF, etc.)
 // zoom is such that zoom=1 means at least one dimension of the PDF is shown entirely on canvas (initialised to 1)
@@ -191,7 +187,7 @@ export const PageCanvas = forwardRef(({ page, zoom, scrollX, scrollY, className,
 // Defined as forwardRef as it must be referenced in PDFViewer component.
 export const InteractivePage = forwardRef(({ page, callback }, interactivePageRef) => { // page is pdf.js page object
 
-    const {interactionState, setInteractionState, zoomIncrement, scrollIncrement} = useContext(PlanContext);
+    const {interactionState, setInteractionState} = useContext(PlanContext);
     const zoom = interactionState.zoom;
     const scrollX = interactionState.scrollX;
     const scrollY = interactionState.scrollY;
@@ -199,6 +195,24 @@ export const InteractivePage = forwardRef(({ page, callback }, interactivePageRe
     const [canvas, setCanvas] = useState(null);
     const [mapping, setMapping] = useState(null);
     const [drawnWindow, setDrawnWindow] = useState(null);
+
+    const ZOOM_INCREMENT = 1.04; // zoom increment factor (as it is a factor, behaves similarly regardless of page size)
+    const A4_SCROLL_INCREMENT = 6; // absolute scroll increment in PDF pt, which will be divided by zoom factor (for finer scrolling when zoomed in)
+    /* ^ 
+    I have adjusted the increment values such that rate is appropriate when doing trackpad pinching/dragging 
+    (which, as per my useWheelZoom and useWheelPan effects, causes continuous increments of zoom/scroll).
+    Scroll increment is calibrated for A4 page, but will be too slow on big pages and too fast on small pages. So,
+    have to adjust below:
+    */
+
+    // -- SET SCROLL INCREMENT ACCORDING TO PAGE DIMENSIONS (so larger pages will scroll more quickly) --
+
+    const viewport = page.getViewport({ scale: 1 });
+    const pageWidth = viewport.width; // in real-life pt
+    const pageHeight = viewport.height; // in real-life pt
+    const sizeFactor = Math.min(pageWidth, pageHeight) / 595.28 // 595.28 is width of A4 page in pt, noting that scrollIncrement is originally calibrated to scroll at a suitable speed on on an A4 page
+    const scrollIncrement = A4_SCROLL_INCREMENT * sizeFactor; // scroll increment adjusted for page size
+    const zoomIncrement = ZOOM_INCREMENT; // zoom increment is the same regardless of page size
 
     // -- HANDLE ZOOMING AND SCROLLING EVENTS --
 

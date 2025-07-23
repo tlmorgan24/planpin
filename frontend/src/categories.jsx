@@ -366,7 +366,7 @@ function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }
                 </div>
             </form>
             <ConfirmModal 
-                message="Are you sure? This category will be permanently deleted, and any existing markers with this category (across all your plans) will have their category reset."
+                message="This category will be permanently deleted, and any existing markers with this category (across all your plans) will have their category reset."
                 isOpen={confirmIsOpen}
                 onConfirm={deleteCategory}
                 onCancel={() => {setConfirmIsOpen(false);}}
