@@ -129,7 +129,7 @@ function PlanProvider({children}) {
                                 [row['category_id']]
                             );
                             color = categoriesResult.values[0]['color']; 
-                            categoryName = categoriesResult.values[0]['category_name']
+                            categoryName = categoriesResult.values[0]['category_name'];
                         }
                         else { // on web:
                             const {data, error} = await supabase
@@ -138,7 +138,7 @@ function PlanProvider({children}) {
                                 .eq('id', row['category_id'])
                                 .single(); // exactly one result expected
                             color = data['color']; 
-                            categoryName = data['category_name']
+                            categoryName = data['category_name'];
                             if (error) console.error(error);
                         }
                     }

@@ -560,8 +560,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                             <option key={row['id']} value={row['id']}>{row['category_name']}</option> // ensures IDs are stored as form values, but category NAMES are what are actually shown to user
                         ))}
                     </select>
-                    <EditCategoryButton categoryId={formValues.categoryId} setCategoryId={setCategoryId} setCategoryModalIsOpen={setCategoryModalIsOpen} />
-                    <NewCategoryButton setCategoryId={setCategoryId} setCategoryModalIsOpen={setCategoryModalIsOpen} />
+                    <ManageCategoryButton categoryId={formValues.categoryId} setCategoryId={setCategoryId} setCategoryModalIsOpen={setCategoryModalIsOpen} />
                 </div>
 
                 {/* Brief description of item, e.g. "2mm horizontal crack to internal wall" (uses textarea instead of input, to allow spilling over multiple lines): */}
@@ -790,32 +789,20 @@ function MarkerDeleteButton({markerId, markerInDb, setClickLocations, closeModal
 
 }
 
-function EditCategoryButton({ categoryId, setCategoryId, setCategoryModalIsOpen }) {
+function ManageCategoryButton({ categoryId, setCategoryId, setCategoryModalIsOpen }) {
 
     function handleClick() {
-        setCategoryId(categoryId);
+        setCategoryId(categoryId); // note categoryId may be null, empty string or UUID here
         setCategoryModalIsOpen(true);
     }
 
     return (
-        <button type="button" onClick={handleClick}>Edit</button>
-    )
-}
-
-function NewCategoryButton({ setCategoryId, setCategoryModalIsOpen }) {
-
-    function handleClick() {
-        setCategoryId(null);
-        setCategoryModalIsOpen(true);
-    }
-
-    return (
-        <button type="button" onClick={handleClick}>New</button>
+        <button type="button" onClick={handleClick}>Manage</button>
     )
 }
 
 // If categoryId is not passed to this modal, we will create a new category, otherwise we will edit the existing category associated with that ID:
-function CategoryModal({ isOpen, closeModal, categoryId=null, setCategoryOptionsData }) {
+function CategoryModal({ isOpen, closeModal, categoryId, setCategoryOptionsData }) {
 
     const {userId} = useContext(UserContext);
     const {db, supabase} = useContext(DbContext);
