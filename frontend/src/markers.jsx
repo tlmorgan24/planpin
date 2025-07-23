@@ -328,156 +328,164 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     async function handleSubmit(e) {
         
         e.preventDefault();
-
         if (imageFolder === undefined) return;
+        toast.loading("Saving...", {id: 'loading'});
         setLoading(true);
+
+        try {
  
-        const clickLocation = clickLocations.find(loc => loc.id === clickedId);
-        const pageNum = clickLocation.pageNum;
-        const x = clickLocation.x;
-        const y = clickLocation.y;
-        
-        const reference = formValues.reference; // if form input is empty string, would not be able to submit to database, as number is expected (and we have NOT NULL constraint anyway). But no worries, as we ensure "required" in the HTML input below, so user can't submit empty string
-        const categoryId = formValues.categoryId === '' ? null : formValues.categoryId; // if form input is empty string, cannot submit to database, as UUID is expected, and empty string is not a UUID (should be explicitly made null instead)
-        const description = formValues.description;
-        const severity = formValues.severity === '' ? null : formValues.severity; // if form input is empty string, cannot submit to database, as number is expected (should be made null instead)
-        const extent = formValues.extent === '' ? null : formValues.extent; // if form input is empty string, cannot submit to database, as number is expected (should be made null instead)
+            const clickLocation = clickLocations.find(loc => loc.id === clickedId);
+            const pageNum = clickLocation.pageNum;
+            const x = clickLocation.x;
+            const y = clickLocation.y;
+            
+            const reference = formValues.reference; // if form input is empty string, would not be able to submit to database, as number is expected (and we have NOT NULL constraint anyway). But no worries, as we ensure "required" in the HTML input below, so user can't submit empty string
+            const categoryId = formValues.categoryId === '' ? null : formValues.categoryId; // if form input is empty string, cannot submit to database, as UUID is expected, and empty string is not a UUID (should be explicitly made null instead)
+            const description = formValues.description;
+            const severity = formValues.severity === '' ? null : formValues.severity; // if form input is empty string, cannot submit to database, as number is expected (should be made null instead)
+            const extent = formValues.extent === '' ? null : formValues.extent; // if form input is empty string, cannot submit to database, as number is expected (should be made null instead)
 
-        const platform = Capacitor.getPlatform();
+            const platform = Capacitor.getPlatform();
 
-        // Create new, or edit existing, marker in database (for supabase, can achieve simply with "upsert" method)
+            // Create new, or edit existing, marker in database (for supabase, can achieve simply with "upsert" method)
 
-        if (platform !== 'web') { // on mobile (no easy "upsert", best to do two separate statements based on condition)
+            if (platform !== 'web') { // on mobile (no easy "upsert", best to do two separate statements based on condition)
 
-            if (markerInDb) {
-                // Edit existing entry in markers table of database:
-                await db.run(
-                    `
-                        UPDATE markers 
-                        SET reference = ?, category_id = ?, description = ?, severity = ?, extent = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
-                        WHERE id = ?
-                    `,
-                    [reference, categoryId, description, severity, extent, clickedId]
-                );
+                if (markerInDb) {
+                    // Edit existing entry in markers table of database:
+                    await db.run(
+                        `
+                            UPDATE markers 
+                            SET reference = ?, category_id = ?, description = ?, severity = ?, extent = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                            WHERE id = ?
+                        `,
+                        [reference, categoryId, description, severity, extent, clickedId]
+                    );
+                }
+                else {
+                    // Create new entry in markers table of database:
+                    await db.run(
+                        `
+                            INSERT INTO markers (id, plan_id, page_number, x, y, reference, category_id, description, severity, extent, created_at, updated_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                        `,
+                        [clickedId, planId, pageNum, x, y, reference, categoryId, description, severity, extent]
+                    );
+                }
+
             }
-            else {
-                // Create new entry in markers table of database:
-                await db.run(
-                    `
-                        INSERT INTO markers (id, plan_id, page_number, x, y, reference, category_id, description, severity, extent, created_at, updated_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                    `,
-                    [clickedId, planId, pageNum, x, y, reference, categoryId, description, severity, extent]
-                );
-            }
 
-        }
+            else { // on web (easy "upsert", especially considering we have set up defaults to NOW for created_at and updated_at in Supabase)
 
-        else { // on web (easy "upsert", especially considering we have set up defaults to NOW for created_at and updated_at in Supabase)
-
-            const {error} = await supabase
-                .from('markers')
-                .upsert(
-                    {
-                        id: clickedId,
-                        plan_id: planId,
-                        page_number: pageNum,
-                        x,
-                        y,
-                        reference,
-                        category_id: categoryId,
-                        description,
-                        severity,
-                        extent,
-                        updated_at: new Date().toISOString(), // set to NOW
-                        // Note, no need to specify created_at, as this will be set to NOW by default for new records, and if we were to set it NOW here, it would overwrite existing created_at if already exists (which we don't want).
-                    }, 
-                    { onConflict: 'id' }
-                );
-            if (error) console.error("Error: ", error);
-
-        }
-
-        // Save images and submit file names to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
-        for (const image of newImages) {
-
-            const imageId = crypto.randomUUID(); // ID for image to add (will always be unique)
-            const imageFileName = await saveImage(image, imageFolder, saveDir, supabase);
-            // Submit to images table of database:
-            if (platform !== 'web') {
-                await db.run(
-                    `
-                        INSERT INTO images (id, marker_id, image_filename, created_at, updated_at) 
-                        VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                    `,
-                    [imageId, clickedId, imageFileName]
-                );
-            }
-            else { // on web
-                await supabase
-                    .from('images')
-                    .insert(
+                const {error} = await supabase
+                    .from('markers')
+                    .upsert(
                         {
-                            id: imageId,
-                            marker_id: clickedId,
-                            image_filename: imageFileName,
-                            // no need for created_at and updated_at, as supabase makes these default to now
-                        }
-                    ); 
+                            id: clickedId,
+                            plan_id: planId,
+                            page_number: pageNum,
+                            x,
+                            y,
+                            reference,
+                            category_id: categoryId,
+                            description,
+                            severity,
+                            extent,
+                            updated_at: new Date().toISOString(), // set to NOW
+                            // Note, no need to specify created_at, as this will be set to NOW by default for new records, and if we were to set it NOW here, it would overwrite existing created_at if already exists (which we don't want).
+                        }, 
+                        { onConflict: 'id' }
+                    );
+                if (error) {
+                    console.error("Error: ", error);
+                    throw error;
+                }
+
             }
 
+            // Save images and submit file names to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
+            for (const image of newImages) {
+
+                const imageId = crypto.randomUUID(); // ID for image to add (will always be unique)
+                const imageFileName = await saveImage(image, imageFolder, saveDir, supabase);
+                // Submit to images table of database:
+                if (platform !== 'web') {
+                    await db.run(
+                        `
+                            INSERT INTO images (id, marker_id, image_filename, created_at, updated_at) 
+                            VALUES (?, ?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                        `,
+                        [imageId, clickedId, imageFileName]
+                    );
+                }
+                else { // on web
+                    const {error} = await supabase
+                        .from('images')
+                        .insert(
+                            {
+                                id: imageId,
+                                marker_id: clickedId,
+                                image_filename: imageFileName,
+                                // no need for created_at and updated_at, as supabase makes these default to now
+                            }
+                        ); 
+                    if (error) {
+                        console.error("Error: ", error);
+                        throw error;
+                    }
+                }
+
+            }
+
+            // Update clickLocations with new information according to category assigned to the marker:
+
+            let color = null;
+            let category_name = null;
+
+            if (categoryId) {
+
+                if (platform !== 'web') { // on mobile
+                    const categoriesResult = await db.query(
+                        `
+                            SELECT category_name, color
+                            FROM categories
+                            WHERE id = ?
+                        `, 
+                        [categoryId]
+                    );
+                    color = categoriesResult.values[0]['color']; 
+                    category_name = categoriesResult.values[0]['category_name']
+                }
+
+                else { // on web
+                    const { data, error } = await supabase
+                        .from('user_categories')
+                        .select('category_name, color')
+                        .eq('id', categoryId)
+                        .single(); // exactly one result expected
+                    if (error) {
+                        console.error("Error: ", error);
+                        throw error;
+                    }
+                    color = data['color']; 
+                    category_name = data['category_name'];
+                }
+            
+            }
+
+            const updatedClickLocations = clickLocations.map(loc => 
+                loc.id === clickedId ? { ...loc, color, category_name } : loc
+            );
+            setClickLocations(updatedClickLocations);
+            
+            closeModal();
+            toast.success("Saved", {id: 'loading'});
+            // we can leave loading=true, so that next time modal is opened, will open with loading screen until useEffect finishes
+
+        } catch (error) {
+            console.error("Error: ", error);
+            toast.error("Something went wrong", {id: 'loading'});
         }
-
-        // Update clickLocations with new information according to category assigned to the marker:
-        /* 
-        KNOWN MINOR BUG: IF USER EDITS THE PROPERTIES OF A CATEGORY AND SUBMITS THE CATEGORY MODAL, 
-        BUT THEN CANCELS THIS FORM MODAL, THE UPDATED CATEGORY PROPERTIES PERSIST, BUT THE CHANGES ARE
-        NOT REFLECTED IN CLICKLOCATIONS (e.g. colour does not update). I think this is an acceptable bug for now
-        (all you have to do is go Home and back onto the plan, and the colours update).
-
-        IF I WANT TO FIX THIS BUG, I should do it by updating (all) clickLocations within the CategoryModal submission. 
-        Then, changes like a new colour are reflected regardless of whether this marker FormModal is submitted or cancelled.
-        */
-
-        let color = null;
-        let category_name = null;
-
-        if (categoryId) {
-
-            if (platform !== 'web') { // on mobile
-                const categoriesResult = await db.query(
-                    `
-                        SELECT category_name, color
-                        FROM categories
-                        WHERE id = ?
-                    `, 
-                    [categoryId]
-                );
-                color = categoriesResult.values[0]['color']; 
-                category_name = categoriesResult.values[0]['category_name']
-            }
-
-            else { // on web
-                const { data, error } = await supabase
-                    .from('user_categories')
-                    .select('category_name, color')
-                    .eq('id', categoryId)
-                    .single(); // exactly one result expected
-                if (error) console.error('Error: ', error);
-                color = data['color']; 
-                category_name = data['category_name'];
-            }
-        
-        }
-
-        const updatedClickLocations = clickLocations.map(loc => 
-            loc.id === clickedId ? { ...loc, color, category_name } : loc
-        );
-        setClickLocations(updatedClickLocations);
-
-        toast.success("Submitted!");
-        closeModal();
-        // we can leave loading=true, so that next time modal is opened, will open with loading screen until useEffect finishes
 
     }
 
@@ -585,7 +593,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
                 <div className="big-buttons-container">
                     <button type="button" className="accented" onClick={onAddPhoto}>Add image</button>
-                    <button type="submit" className="accented">Submit</button>
+                    <button type="submit" className="accented">Save</button>
                     <button type="button" onClick={onRequestClose}>Cancel</button>
                     <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
                 </div>

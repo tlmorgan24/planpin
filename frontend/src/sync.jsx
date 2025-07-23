@@ -28,22 +28,14 @@ export function SyncButton() {
     const {refreshPdfObjects} = useContext(HomeContext);
 
     async function handleClick() {
-        toast.loading("Syncing...", {id: 'syncing'});
         if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined) return;
-        console.log("Sync clicked.")
-        console.log("Current local users table: ", await sqliteDb.query('SELECT * FROM users'));
-        console.log("Current cloud users table: ", await supabase.from('users').select('*'));
-        console.log("Current local plans table: ", await sqliteDb.query('SELECT * FROM plans'));
-        console.log("Current cloud plans table: ", await supabase.from('plans').select('*'));
-        console.log("Current local markers table: ", await sqliteDb.query('SELECT * FROM markers'));
-        console.log("Current cloud markers table: ", await supabase.from('markers').select('*'));
-        console.log("Current local images table: ", await sqliteDb.query('SELECT * FROM images'));
-        console.log("Current cloud images table: ", await supabase.from('images').select('*'));
         if (userId === 'guest') {
+            toast.loading("Syncing...", {id: 'syncing'});
             await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
         }
         else {
             if (!supabase) return;
+            toast.loading("Syncing...", {id: 'syncing'});
             try {
                 await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
                 toast.success('Sync complete!', {id: 'syncing'});
@@ -75,7 +67,7 @@ export async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolde
 
     console.log('Starting sync...');
     
-    for (const table of ['users', 'plans', 'markers', 'images']) {
+    for (const table of ['users', 'categories', 'plans', 'markers', 'images']) {
         try {
             await pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir);
             await pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir);
@@ -136,6 +128,16 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
         sqliteQuery = `
             SELECT *
             FROM plans
+            WHERE user_id = ?
+                AND (updated_at > synced_at
+                    OR synced_at IS NULL
+                )
+        `;
+    }
+    else if (table === 'categories') {
+        sqliteQuery = `
+            SELECT *
+            FROM categories
             WHERE user_id = ?
                 AND (updated_at > synced_at
                     OR synced_at IS NULL
@@ -206,11 +208,14 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
     // Update synced_at of pushed rows to match the row's updated_at (as current update of row has been synced):
     const pushedIds = rowsToPush.map(row => row['id']);
     const pushedIdPlaceholders = pushedIds.map(() => '?').join(', '); // e.g. '?, ?' etc.
-    await sqliteDb.run(`
-        UPDATE ${table}
-        SET synced_at = updated_at
-        WHERE id IN (${pushedIdPlaceholders})
-    `, pushedIds);
+    await sqliteDb.run(
+        `
+            UPDATE ${table}
+            SET synced_at = updated_at
+            WHERE id IN (${pushedIdPlaceholders})
+        `, 
+        pushedIds
+    );
 
     console.log('Finished pushing to cloud for table: ', table);
 
@@ -223,12 +228,15 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
 
     console.log('Starting pulling from cloud for table: ', table);
 
-    const metaQuery = await sqliteDb.query(`
-        SELECT last_synced_from_cloud 
-        FROM meta 
-        WHERE table_name = ? 
-            AND user_id = ?
-    `, [table, userId]);
+    const metaQuery = await sqliteDb.query(
+        `
+            SELECT last_synced_from_cloud 
+            FROM meta 
+            WHERE table_name = ? 
+                AND user_id = ?
+        `, 
+        [table, userId]
+    );
     const lastSyncedFromCloud = metaQuery.values.length > 0 ?
         metaQuery.values[0]['last_synced_from_cloud'] // if query does not return empty (row for this table/user already exists) 
         : null; // if query returns empty (row for this table/user does not exist yet, i.e. never been synced)
@@ -309,7 +317,12 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
 
         for (const row of data) {
             const localResult = await sqliteDb.query(
-                `SELECT id FROM ${table} WHERE id = ?`, [row['id']]
+                `
+                    SELECT id 
+                    FROM ${table} 
+                    WHERE id = ?
+                `, 
+                [row['id']]
             );
 
             if (localResult.values.length === 0) {
@@ -338,7 +351,8 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
                     statement: `
                         INSERT INTO ${table} (${columns.join(', ')})
                         VALUES (${valuesPlaceholder})
-                        ON CONFLICT(id) DO UPDATE SET ${set};
+                        ON CONFLICT(id) DO UPDATE SET 
+                            ${set};
                     `,
                     values
                 };
@@ -378,8 +392,9 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
                     statement: `
                         INSERT INTO ${table} (${columns.join(', ')})
                         VALUES (${valuesPlaceholder})
-                        ON CONFLICT(id) DO UPDATE SET ${set}
-                        WHERE excluded.updated_at > ${table}.updated_at;
+                        ON CONFLICT(id) DO UPDATE SET 
+                            ${set}
+                            WHERE excluded.updated_at > ${table}.updated_at;
                     `,
                     values: values
                 };
@@ -411,7 +426,8 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
     await sqliteDb.run(`
         INSERT INTO meta (table_name, user_id, last_synced_from_cloud)
         VALUES (?, ?, ?)
-        ON CONFLICT(table_name, user_id) DO UPDATE SET last_synced_from_cloud = ?
+        ON CONFLICT(table_name, user_id) DO UPDATE SET 
+            last_synced_from_cloud = ?
         `, [table, userId, maxUpdatedAt, maxUpdatedAt]
     );
 
@@ -563,6 +579,18 @@ async function cleanUpLocalDb(db, userId) {
     const planIds = plansResult.values.map(row => row['id']);
     const pdfFileNames = plansResult.values.map(row => row['pdf_filename']);
 
+    const categoriesResult = await db.query(`
+        SELECT id 
+        FROM categories 
+        WHERE user_id = ? 
+            AND deleted_at IS NOT NULL 
+            AND deleted_at < datetime('now', '-14 days')
+            AND ((synced_at IS NOT NULL AND synced_at >= deleted_at)
+                OR user_id = 'guest'
+            )
+    `, [userId]);
+    const categoryIds = categoriesResult.values.map(row => row['id']);
+
     // --- DELETE FROM DATABASE ---
 
     // Note deletion from images table must come before deletion from markers table, as images table has foreign key constraint on markerId; i.e. marker must exist. Etc. going up the tree.
@@ -589,6 +617,14 @@ async function cleanUpLocalDb(db, userId) {
             DELETE FROM plans
             WHERE id IN (${planValuesPlaceholder})
         `, planIds);
+    }
+
+    if (categoryIds.length > 0) {
+        const categoryValuesPlaceholder = categoryIds.map(() => '?').join(', ');  // e.g. '?, ?' etc.
+        await db.run(`
+            DELETE FROM categories
+            WHERE id IN (${categoryValuesPlaceholder})
+        `, categoryIds);
     }
 
     return { pdfFileNames, imageFileNames } // for deletion from filesystem
@@ -721,6 +757,33 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
 
     }
 
+    // --- CATEGORIES ---
+
+    const categoriesQuery = await sqliteDb.query(`
+        SELECT id
+        FROM categories
+        WHERE deleted_at IS NOT NULL 
+            AND deleted_at < datetime('now', '-14 days')
+            AND synced_at IS NOT NULL 
+            AND synced_at >= deleted_at
+            AND user_id = ?
+    `, [userId]);
+    const categoryIds = categoriesQuery.values.map(row => row['id']);
+
+    let safeCategoryIds = [];
+    if (categoryIds.length > 0) {
+
+        const {data: categoriesCloudCheck, error} = await supabase
+            .from('categories')
+            .select('id, deleted_at')
+            .in('id', categoryIds);
+        if (error) console.error("Error: ", error);
+
+        const safeCategoryRecords = plansCloudCheck.filter(row => row.deleted_at !== null);
+        safeCategoryIds = safeCategoryRecords.map(row => row['id']);
+
+    }
+
     // ------ DELETE FROM DATABASE ------
 
     // Delete the "safe" records from cloud database (i.e., records still marked as deleted in cloud database):
@@ -746,6 +809,14 @@ async function cleanUpCloudDb(supabase, sqliteDb, userId) {
             .from('plans')
             .delete()
             .in('id', safePlanIds);
+        if (error) console.error("Error: ", error);
+    }
+
+    if (safeCategoryIds.length > 0) {
+        const { error } = await supabase
+            .from('categories')
+            .delete()
+            .in('id', safeCategoryIds);
         if (error) console.error("Error: ", error);
     }
 

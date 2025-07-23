@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { UserContext } from "./main";
 import { DbContext } from "./main";
 import { AppContext } from "./App";
+import ConfirmModal from "./ConfirmModal";
 
 // Get category options user has created, from categories table of database:
 async function refreshCategories(db, supabase, userId, setCategoryOptionsData) {
@@ -30,7 +31,10 @@ async function refreshCategories(db, supabase, userId, setCategoryOptionsData) {
             .select('id, category_name, color')
             .eq('user_id', userId)
             .is('deleted_at', null);
-        if (error) console.error('Error: ', error);
+        if (error) {
+            console.error('Error: ', error);
+            throw error;
+        }
         if (data.length > 0) {
             setCategoryOptionsData(data);
         }
@@ -65,7 +69,7 @@ export function CategoriesModal() {
     const [categoryOpen, setCategoryOpen] = useState(false); // second modal, for a specific category, opened on button click to add/edit the category
     const [categoryId, setCategoryId] = useState(null); // ID to pass to single-category modal on button click (will pass null if adding new category)
 
-    // Refresh on start-up (NOT on change of categoryOptionsData, because this is updated much more efficiently when user edits/adds category, and is tracked by the useContext here to monitor that change):
+    // Refresh on start-up (so that categories are accurate when modal opens):
     useEffect(() => {
         async function func() {
             await refreshCategories(db, supabase, userId, setCategoryOptionsData);
@@ -83,7 +87,9 @@ export function CategoriesModal() {
         setCategoryOpen(true); // open single-category modal
     }
 
-    function closeModal() {
+    async function closeModal() {
+        // Refresh on close (so that categoryOptionsData reflects any edits made, triggering clickLocations to update marker colors etc, as the effect that initially sets clickLocations tracks categoryOptionsData):
+        await refreshCategories(db, supabase, userId, setCategoryOptionsData);
         setCategoriesOpen(false);
     }
 
@@ -125,15 +131,13 @@ export function CategoriesModal() {
     )
 }
 
-
-
-
 // If categoryId is not passed to this modal, we will create a new category, otherwise we will edit the existing category associated with that ID:
 function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }) {
 
     const {userId} = useContext(UserContext);
     const {db, supabase} = useContext(DbContext);
     const [formValues, setFormValues] = useState({category_name: '', color: ''});
+    const [confirmIsOpen, setConfirmIsOpen] = useState(false); // whether confirmation modal (to show when user tries to delete, to seek confirmation first) is open
 
     // Set form values (category name and color) to current database data (if categoryId parameter is passed)
     useEffect(() => {
@@ -164,7 +168,10 @@ function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }
                     .from('categories')
                     .select('category_name, color')
                     .eq('id', categoryId);
-                if (error) console.error(error);
+                if (error) {
+                    console.error("Error: ", error);
+                    throw error;
+                }
                 row = data[0];
             }
 
@@ -182,13 +189,15 @@ function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }
 
         e.preventDefault();
 
-        let existing = true;
-        if (!categoryId) {
-            existing = false;
-            categoryId = crypto.randomUUID(); // Generate new random UUID for new category, so there will be no primary key conflict (the try/catch below is just to catch generic unexpected errors)
-        }
+        toast.loading("Saving...", {id: 'loading'});
 
         try {
+
+            let existing = true;
+            if (!categoryId) {
+                existing = false;
+                categoryId = crypto.randomUUID(); // Generate new random UUID for new category, so there will be no primary key conflict (the try/catch below is just to catch generic unexpected errors)
+            }
 
             if (Capacitor.getPlatform() !== 'web') { // on mobile
                 await db.run(
@@ -217,9 +226,13 @@ function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }
                         },
                         {onConflict: 'id'}
                     ); 
-                if (error) throw error;
+                if (error) {
+                    console.error(error);
+                    throw error;
+                }
             }
 
+            // Update categoryOptionsData (so that the CategoriesModal stacked immediately beneath this modal remains accurate):
             if (!existing) { // append new entry to categoryOptionsData:
                 setCategoryOptionsData(prev => [...prev, {id: categoryId, category_name: formValues.category_name, color: formValues.color}]);
             }
@@ -230,11 +243,87 @@ function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }
                         : category
                 ));
             }
+
             closeModal();
+            toast.success("Saved", {id: 'loading'});
+
+        } catch (error) {
+            console.error("Error: ", error);
+            toast.error("Something went wrong", {id: 'loading'});
+            // leave modal open
+        }
+
+    }
+
+    async function deleteCategory() {
+
+        toast.loading("Deleting...", {id: 'loading'});
+
+        try {
+
+            if (Capacitor.getPlatform() !== 'web') { // on mobile
+                // Set category to "deleted" in database:
+                await db.run(
+                    `
+                        UPDATE categories 
+                        SET deleted_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                            updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+                        WHERE id = ?
+                    `, 
+                    [categoryId]
+                );
+                // Set category_id to NULL for affected markers:
+                await db.run(
+                    `
+                        UPDATE markers 
+                        SET category_id = NULL
+                        WHERE category_id = ?
+                    `, 
+                    [categoryId]
+                );
+            }
+            else { // on web
+                // Set category to "deleted" in database:
+                const {error} = await supabase
+                    .from('categories')
+                    .update(
+                        {
+                            deleted_at: new Date().toISOString(), // set to NOW
+                            updated_at: new Date().toISOString(), // set to NOW
+                        }
+                    )
+                    .eq('id', categoryId);
+                if (error) {
+                    console.error("Error: ", error);
+                    throw error;
+                }
+                // Set category_id to NULL for affected markers:
+                const {markersError} = await supabase
+                    .from('markers')
+                    .update(
+                        {
+                            category_id: null,
+                        }
+                    )
+                    .eq('category_id', categoryId);
+                if (markersError) {
+                    console.error("Error: ", markersError);
+                    throw markersError;
+                }
+            }
+
+            // Immediately remove from categoryOptionsData (as won't automatically re-render, even though database is updated):
+            setCategoryOptionsData(prev => prev.filter(category => 
+                category.id !== categoryId 
+            ));
+
+            setConfirmIsOpen(false); // close confirmation modal
+            closeModal(); // close this category-edit modal
+            toast.success("Deleted", {id: 'loading'});
 
         } catch (error) {
             console.error(error);
-            toast.error("Something went wrong")
+            toast.error("Something went wrong", {id: 'loading'});
             // leave modal open
         }
 
@@ -267,10 +356,21 @@ function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }
                     <input id="color" name="color" type="color" value={formValues.color} onChange={handleFormChange} />
                 </div>
                 <div className="big-buttons-container">
-                    <button type="submit" className="accented">Submit</button>
+                    <button type="submit" className="accented">Save</button>
                     <button type="button" onClick={closeModal}>Cancel</button>
+                    {/* only show delete button if existing category (not adding new category): */}
+                    {categoryId ? 
+                        <button type="button" className="bad" onClick={() => {setConfirmIsOpen(true);}}>Delete category</button>
+                        : null
+                    }
                 </div>
             </form>
+            <ConfirmModal 
+                message="Are you sure? This category will be permanently deleted, and any existing markers with this category (across all your plans) will have their category reset."
+                isOpen={confirmIsOpen}
+                onConfirm={deleteCategory}
+                onCancel={() => {setConfirmIsOpen(false);}}
+            />
         </Modal>
     )
 }

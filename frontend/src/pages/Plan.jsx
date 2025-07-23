@@ -6,6 +6,7 @@ import { InteractivePage } from "../pdf-render";
 import { MarkerLayer } from "../markers";
 import { readPdf, readPdfFromSupabase, loadPdf } from "../pdf-setup";
 import { DbContext, UserContext } from "../main";
+import { AppContext } from "../App";
 
 
 // -- CONTEXT VARIABLES --
@@ -44,6 +45,7 @@ function PlanProvider({children}) {
     
     const {db, supabase} = useContext(DbContext);
     const {userId} = useContext(UserContext);
+    const {categoryOptionsData} = useContext(AppContext);
 
     // Get clickLocations from markers database:
     useEffect(() => {
@@ -158,8 +160,8 @@ function PlanProvider({children}) {
 
         }
         func();
-    }, [db, supabase, pdfFileName]); // NB: changes to db do not trigger re-run; only triggers when db references different database (i.e. if db was intiially null and is now referencing the database object, it will run)
-
+    }, [db, supabase, pdfFileName, categoryOptionsData]); // NB: changes to db do not trigger re-run; only triggers when db references different database (i.e. if db was intiially null and is now referencing the database object, it will run)
+    // Note, categoryOptionsData is a dep so that clickLocation colors will refresh automatically when user edits categories (editing categories always sets categoryOptionsData; see categories.jsx)
     return (
         <PlanContext.Provider value={{
         planId, setPlanId,
