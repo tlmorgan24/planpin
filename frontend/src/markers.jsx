@@ -1,4 +1,5 @@
 import { forwardRef, useContext, useState, useEffect, useRef } from "react";
+import PinIcon from "./assets/PinIcon"; // manually pasted SVG code into React component to allow custom fill color
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { PlanContext } from "./pages/Plan";
@@ -18,8 +19,8 @@ import { ManageCategoriesButton } from "./categories";
 function Marker({ id, canvasX, canvasY, color, category_name, setClickedId }) {
     
     // CSS incorporated here rather than in .css file, due to dynamic nature of positioning and the fact that it is dependent on width & height.
-    const width = 10; // px
-    const height = 10; // px
+    const width = 40; // px
+    const height = 40; // px
 
     function handleClick() {
         setClickedId(id);
@@ -27,18 +28,17 @@ function Marker({ id, canvasX, canvasY, color, category_name, setClickedId }) {
     }
 
     return(
-        <div
+        <PinIcon
             className="marker"
             id={id} // marker ID as stored in database
             onClick={handleClick}
+            fillColor={color || '#9cc7b8'} // default to "--mid-accent-color" (hardcoded, could improve to use the actual CSS variable in future)
             style={{
                 position: 'absolute', // such that left and top positions will be relative to parent (canvas), assuming that parent has non-static position.
                 width: `${width}px`,
                 height: `${height}px`,
                 left: `${canvasX - width/2}px`,
-                top: `${canvasY - height/2}px`,
-                backgroundColor: color || 'red', // if color is null, default to red
-                borderRadius: '50%'
+                top: `${canvasY - height}px`,
             }}
         />
     );
@@ -599,6 +599,8 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 </div>
 
             </form>
+
+            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
             
         </Modal>
     );

@@ -1,9 +1,11 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
+import Modal from "react-modal";
 import { toast } from 'sonner';
 import { Filesystem } from "@capacitor/filesystem";
 import { DbContext, UserContext } from "./main";
 import { HomeContext } from "./pages/Home";
 import { getFilenames, saveFile, readAsBlob, removeFile } from "./pdf-setup";
+import Loading from "./pages/Loading";
 
 /*
 NOTE: a synced_at column exists in each local table to mean record-wise "last PUSHED TO cloud".
@@ -26,28 +28,39 @@ export function SyncButton() {
     const {db: sqliteDb, supabase} = useContext(DbContext);
     const {userId, pdfFolder, imageFolder, saveDir} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
+    const [modalIsOpen, setModalIsOpen] = useState(false);
 
     async function handleClick() {
-        if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined) return;
-        if (userId === 'guest') {
-            toast.loading("Syncing...", {id: 'syncing'});
-            await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
-        }
-        else {
-            if (!supabase) return;
-            toast.loading("Syncing...", {id: 'syncing'});
-            try {
-                await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
-                toast.success('Sync complete!', {id: 'syncing'});
-            } catch {
-                toast.error('Something went wrong while syncing', {id: 'syncing'});
+
+        if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined || (userId !== 'guest' && !supabase)) return;
+        setModalIsOpen(true);
+        toast.loading("Syncing...", {id: 'syncing'});
+        
+        try {
+
+            if (userId === 'guest') {
+                await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
             }
+            else {
+                await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
+            }
+            toast.success('Sync complete!', {id: 'syncing'});
+            setModalIsOpen(false);
             await refreshPdfObjects();
+
+        } catch {
+            toast.error('Something went wrong while syncing', {id: 'syncing'});
         }
+
     }
 
     return(
-        <button type="button" onClick={handleClick}>Sync</button>
+        <>
+            <button type="button" className="accented" onClick={handleClick}>Sync</button>
+            <Modal className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={modalIsOpen} >
+                <Loading message="Please wait..." />
+            </Modal>
+        </>
     );
 
 }

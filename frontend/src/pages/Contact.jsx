@@ -34,6 +34,8 @@ export default function Contact() {
 
             toast.success('Message sent!', {id: 'loading'});
 
+            setFormValues({name: '', email: '', message: ''});
+
         } catch (error) {
             toast.error('There was a problem sending the message', {id: 'loading'});
             console.error("Error sending message: ", error);
@@ -88,7 +90,9 @@ export default function Contact() {
 
             </form>
 
+            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
+
         </div>
     );
-    
+
 }

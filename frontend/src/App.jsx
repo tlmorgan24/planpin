@@ -64,7 +64,10 @@ export default function App() {
 
     let content = <Loading />;
 
-    if (checkedSession && supabase && (Capacitor.getPlatform() === 'web' || db)) { // make sure we wait for SQLite or Supabase database clients to initialise (both required for mobile app; only Supabase required for web).
+    // Make sure we wait for SQLite or Supabase database clients to initialise (both required for mobile app; only Supabase required for web):
+    if (!checkedSession || !supabase || (Capacitor.getPlatform() !== 'web' && !db)) {
+        return <Loading />;
+    }
         if (userId === undefined) { // user has neither signed in, nor chosen to continue as guest yet. We have already checked to see if there is previously saved session (there isn't one), so take user to login screen.
             content = (
                 <Auth />
@@ -76,27 +79,35 @@ export default function App() {
     table of database, if doesn't already exist. Finally, I will clean up old deleted files (which have been marked 
     as deleted for more than 14 days AND SYNCED WITH CLOUD DATABASE OR WHERE USER IS GUEST, so can be fully hard deleted).
     */
-        else {
-            content = (
-                <AppProvider>
-                    <BrowserRouter>
-                        <Routes>
-                            <Route path="/" element={<Home />} />
-                            <Route path="/plan" element={<Plan />} />
-                            <Route path="/contact" element={<Contact />} />
-                            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                        </Routes>
-                        <SettingsModal />
-                        <CategoriesModal />
-                    </BrowserRouter>
-                </AppProvider>
-            );
-        }
-    }
 
     return (
         <>
-            {content}
+            <AppProvider>
+                <BrowserRouter>
+                    <Routes>
+                        {/* if user not signed in or guest, Home and Plan pages are inaccessible, and Auth page is shown instead: */}
+                        {userId === undefined ? 
+                            <Route path="*" element={<Auth />} />
+                            : 
+                            <>
+                                <Route path="/" element={<Home />} />
+                                <Route path="/plan" element={<Plan />} />
+                            </>
+                        }
+                        {/* Contact and Privacy Policy pages accessible regardless: */}
+                        <Route path="/contact" element={<Contact />} />
+                        <Route path="/privacy-policy" element={<PrivacyPolicy />} /> 
+                    </Routes>
+                    {userId === undefined ? 
+                        null
+                        :
+                        <>
+                            <SettingsModal />
+                            <CategoriesModal />
+                        </>
+                    }
+                </BrowserRouter>
+            </AppProvider>
             <Toaster position="bottom-center" richColors /> {/* for easy pop-ups for loading, confirmation, etc */}
         </>
     );

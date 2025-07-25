@@ -10,6 +10,7 @@ export default function PrivacyPolicy() {
             <p>
                 Got questions? <a href="/contact">Get in touch</a>.
             </p>
+            <img src="/src/assets/logo-text-beside.svg" />
         </div>
     );
 }

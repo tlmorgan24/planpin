@@ -29,7 +29,7 @@ export default function Auth() {
 
     return(
         <div className="auth-container">
-            <h1>Welcome to this app!</h1>
+            <h1>Welcome to Pinpoint!</h1>
             <div className='big-buttons-container'>
                 <button onClick={signUp}>Sign up</button>
                 <button onClick={logIn}>Log in</button>
@@ -44,6 +44,7 @@ export default function Auth() {
                 See the <a href="/privacy-policy">privacy policy</a>.<br/>
                 Got questions? <a href="/contact">Get in touch</a>.
             </p>
+            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
     );

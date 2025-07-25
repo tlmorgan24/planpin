@@ -1,25 +1,17 @@
 /* Define variables: */
 :root {
   --primary-color: #2d2d2d;
-  --secondary-color: #565656;
-  --accent-color: #085d75;
   --inverse-primary-color: #fefefe;
-  --inverse-accent-color: #b6d9e2;
-  --mid-accent-color: #96c8d5;
+  --mid-primary-color: #e0e0e0;
+  --secondary-color: #6b6b6b;
 
-  --hovering-background-color: #e0e0e0;
+  --accent-color: #0e533c;
+  --inverse-accent-color: #b2d8cc;
+  --mid-accent-color: #9cc7b8;
 
-  --bad-background-color: #efb9b9;
-  --bad-hovering-background-color: #e1a6a6;
-  --bad-foreground-color: #830505;
-
-  --good-background-color: #b8e2bd;
-  --good-hovering-background-color: #8eba93;
-  --good-foreground-color: #2c422f;
-
-  --accented-background-color: var(--inverse-accent-color);
-  --accented-hovering-background-color: var(--mid-accent-color);
-  --accented-foreground-color: var(--accent-color);
+  --bad-color: #830505;
+  --inverse-bad-color: #efb9b9;
+  --mid-bad-color: #e1a6a6;
 
   --body-margin: 8px; /* will not apply this margin directly to body element; instead, will apply to safe-area-container (which is a child of body & root) */
   /* Set usable width and height within body content, such that whole viewport is spanned with no scrolling required: */
@@ -55,7 +47,7 @@ html, body {
 }
 
 a {
-  color: var(--hovering-background-color);
+  color: var(--mid-primary-color);
 }
 
 /* Top-level containers: */
@@ -86,7 +78,7 @@ markerLayer fill entirety of pageCanvas.
   position: relative;
   overflow: hidden;
   width: var(--usable-width);
-  border: 2px solid var(--accent-color);
+  border: 3px solid var(--accent-color);
   flex-grow: 1;
   flex-shrink: 1;
 }
@@ -113,6 +105,11 @@ markerLayer fill entirety of pageCanvas.
 
 .marker {
   cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.marker:hover {
+  transform: scale(1.05);
 }
 
 
@@ -131,11 +128,10 @@ markerLayer fill entirety of pageCanvas.
 
 .thumbnail, .pdf-input-container { /* we will style the PDF file input to look similar to other thumbnails of existing PDFs (e.g. same size) */
   position: relative;
+  overflow: hidden;
   min-width: 100px;
   max-width: 250px;
   aspect-ratio: 1 / 1; /* always square */
-  overflow: hidden;
-  border: 2px solid var(--accent-color);
   border-radius: 10px;
   /* If possible within min/max width, aim for 2 items per line, but no flex-grow, as otherwise a lone thumbnail on its row will grow bigger than the other thumbnails: */
   flex: 0 1 calc(49% - var(--thumbnail-gap)); 
@@ -143,13 +139,29 @@ markerLayer fill entirety of pageCanvas.
   transition: transform 0.3s ease;
 }
 
-.thumbnail:hover {
+.thumbnail:hover, .pdf-input-container:hover {
   transform: scale(1.05);
 }
 
 .thumbnail-canvas {
   width: 100%;
   height: 100%;
+}
+
+.pdf-input-container label {
+  width: 100%;
+  height: 100%;
+  background-color: var(--secondary-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+.pdf-input-container label img {
+  padding-top: 10%;
+  width: 80%;
+  height: 80%;
 }
 
 
@@ -218,13 +230,6 @@ markerLayer fill entirety of pageCanvas.
   border-radius: 5px;
 }
 
-.item-image-container button, .thumbnail button {
-  position: absolute;
-  margin-bottom: 5px; /* position 5px above bottom of containing block's padding */ 
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-}
 
 /* Forms: */
 
@@ -296,31 +301,23 @@ button {
 }
 
 button:hover {
-  background-color: var(--hovering-background-color);
+  background-color: var(--mid-primary-color);
 }
 
 .bad {
-  color: var(--bad-foreground-color);
-  background-color: var(--bad-background-color);
+  color: var(--bad-color);
+  background-color: var(--inverse-bad-color);
 }
 .bad:hover {
-  background-color: var(--bad-hovering-background-color);
-}
-
-.good {
-  color: var(--good-foreground-color);
-  background-color: var(--good-background-color);
-}
-.good:hover {
-  background-color: var(--good-hovering-background-color);
+  background-color: var(--mid-bad-color);
 }
 
 .accented {
-  color: var(--accented-foreground-color);
-  background-color: var(--accented-background-color);
+  color: var(--accent-color);
+  background-color: var(--inverse-accent-color);
 }
 .accented:hover {
-  background-color: var(--accented-hovering-background-color);
+  background-color: var(--mid-accent-color);
 }
 
 .big-buttons-container {
@@ -347,6 +344,14 @@ button:hover {
   padding-right: 15px;
   font-size: 1.1rem;
   flex-grow: 1;
+}
+
+.item-image-container button, .thumbnail button, .pdf-input-container label button {
+  position: absolute;
+  margin-bottom: 5px; /* position 5px above bottom of containing block's padding */ 
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 /* 

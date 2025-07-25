@@ -96,6 +96,7 @@ export default function Home() {
                 We will apply common styling to it as other thumbnails, making it fit nicely in the layout so that
                 the input button, with its location/sizing, is showing you exactly where the added PDF will go.
                 */}
+                <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
             </div>
         </HomeProvider>
     );
@@ -196,7 +197,10 @@ function PDFInput() {
             Also, rather than a traditional form with submit button (which would require user to select submit after
             selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
             */}
-            <label className="custom-file-input" htmlFor="file-input">File input</label>
+            <label className="custom-file-input" htmlFor="file-input">
+                <img src="/src/assets/clipboard-arrow.svg" />
+                <button className="accented" type="button" style={{pointerEvents: "none"}}>Upload a PDF</button> {/* note making this a "button" has no functional use, as the label is the real button, but just for nice formatting */}
+            </label>
             <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/>
         </div>
     );

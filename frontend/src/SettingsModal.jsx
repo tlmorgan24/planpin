@@ -43,6 +43,7 @@ export default function SettingsModal() {
                 <a href="/contact">Contact</a><br/>
                 <a href="/privacy-policy">Privacy policy</a>
             </p>
+            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
             {/* 
             When user clicks "Delete account" button, we show confirmation modal. 
             If user THEN clicks confirm on the confirmation modal, we proceed to delete the account.
