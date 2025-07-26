@@ -188,15 +188,15 @@ def mark_plan(pdf_stream, page_number, x, y):
     page = doc.load_page(page_number - 1)
     
     # Convert to Pillow (required to then allow overlay of pin marker):
-    zoom = 1 # such that 1 PDF point will map to "zoom" PX units
+    zoom = 1 # such that 1 PDF point will map to "zoom" IMAGE pixels (not device pixels or CSS pixels)
     matrix = fitz.Matrix(zoom, zoom)
     pixmap = page.get_pixmap(matrix=matrix) # get pixmap (image) from PDF
     pdf_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples) # get Pillow Image object from pixmap
 
-    # As we know the scale of the pixmap is created from the zoom variable, we can immediately convert x and y (pt) to px:
+    # As we know the scale of the pixmap is created from the "zoom" variable, we can immediately convert x and y (pt) to image pixels (px):
     x_px = int(x * zoom)
     y_px = int(y * zoom)
-    # ^ Note later .paste() method requires integer coords
+    # ^ This satisfies later .paste() method, which requires integer coords in units of image pixels
 
     # Convert to Pillow to then allow overlay of pin marker:
     pdf_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
