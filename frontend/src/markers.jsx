@@ -189,7 +189,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             else { // on web
 
                 // Get maximum reference for this plan (including of all deleted markers, to prevent misleading duplicates):
-                const { maxData, maxError } = await supabase
+                const { data: maxData, error: maxError } = await supabase
                     .from('user_markers')
                     .select('reference')
                     .eq('plan_id', planId)
@@ -197,7 +197,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     .limit(1);
                 if (maxError) console.error('Error: ', maxError);
                 if (maxData && maxData.length > 0) {
-                    maxRefNo = maxData[0]['max_reference'];
+                    maxRefNo = maxData[0]['reference'];
                 }
 
                 // Get form data:
@@ -598,9 +598,13 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
                 </div>
 
-            </form>
+                {/* 
+                Put logo inside <form> rather than outside, as otherwise will get a double logo during loading 
+                (as this logo would not be hidden during loading, and Loading.jsx's logo will also be showing): 
+                */}
+                <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
 
-            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
+            </form>
             
         </Modal>
     );
