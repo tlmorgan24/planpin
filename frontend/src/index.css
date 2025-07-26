@@ -63,6 +63,11 @@ a {
   align-items: center;
 }
 
+.privacy-policy {
+  text-align: left;
+  max-width: 800px;
+}
+
 /* 
 pageCanvas & markerLayer will be inside page-container of same size, 
 which has overflow hidden to prevent markers going outside canvas boundary.

@@ -29,7 +29,7 @@ export default function Auth() {
 
     return(
         <div className="auth-container">
-            <h1>Welcome to Pinpoint!</h1>
+            <h1>Welcome to PlanPin!</h1>
             <div className='big-buttons-container'>
                 <button onClick={signUp}>Sign up</button>
                 <button onClick={logIn}>Log in</button>

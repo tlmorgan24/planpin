@@ -15,12 +15,12 @@ def forward_message(name: str, email: str, message: str):
             {
                 "From": {
                     "Email": domain_email, # must send from the email address set up in Mailjet for sending (authenticated with SPF/DKIM so won't be marked as spam)
-                    "Name": "PinPoint"
+                    "Name": "PlanPin"
                 },
                 "To": [
                     {
                         "Email": domain_email, # I send emails back to the domain email instead of straight to me, because I have email forwarding set up on pork bun so that the emails received there will come to my personal address
-                        "Name": "PinPoint"
+                        "Name": "PlanPin"
                     }
                 ],
                 "Subject": f"New contact form message from {name}",

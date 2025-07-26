@@ -83,6 +83,8 @@ export default function Contact() {
                     <textarea ref={textAreaRef} id="message" name="message" value={formValues.message} onChange={handleTextAreaChange} />
                 </div>
 
+                <p>Alternatively, send an email to <a href="mailto:contact@planpin.app">contact@planpin.app</a>.</p>
+
                 <div className="big-buttons-container">
                     <HomeButton />
                     <button type="submit" className="accented">Submit</button>
@@ -90,7 +92,7 @@ export default function Contact() {
 
             </form>
 
-            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
+            <a href="/"><img className="bottom-logo" src="/src/assets/logo-text-beside.svg" /></a>
 
         </div>
     );
