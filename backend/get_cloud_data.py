@@ -16,7 +16,7 @@ def init_supabase(access_token, refresh_token):
 def get_marker_records(supabase, plan_id):
     response = (
         supabase.table('user_markers') # view of markers table filtered to authenticated user
-        .select('id, reference, category_id, description, severity, extent')
+        .select('id, page_number, x, y, reference, category_id, description, severity, extent')
         .eq('plan_id', plan_id) # filter to only the plan the user is generating the report for
         .is_('deleted_at', None) # where deleted_at is null (non-deleted records)
         .order('reference') # order alphabetically by reference (so that defects will appear in suitable order in report)
@@ -68,8 +68,8 @@ def get_image_filenames(supabase, marker_id:str):
 def get_image_file(supabase, user_id:str, filename:str):
     filepath = user_id + '/img/' + filename
     response = supabase.storage.from_('user-files').download(filepath) # my bucket is called user-files
-    stream = BytesIO(response) # response from .download is just bytes, not an object with .data etc properties
-    return stream # this object can now be called directly in python-docx add_picture method
+    stream = BytesIO(response) # response from .download is raw bytes, which we want to convert to a byte stream
+    return stream # this stream can now be called directly in python-docx add_picture method
 
 # Output dictionary with marker IDs as keys and their associated image files (as list of stream objects) as values
 def associate_image_files(supabase, user_id:str, marker_records:list):
@@ -83,6 +83,24 @@ def associate_image_files(supabase, user_id:str, marker_records:list):
             image_files.append(image_file)
         dictionary[marker_id] = image_files
     return dictionary
+
+# Get PDF of plan:
+def get_pdf(supabase, user_id, plan_id):
+    # Get pdf_filename (under which the PDF is stored):
+    response = (
+        supabase.table('user_plans') # view of markers table filtered to authenticated user
+        .select('pdf_filename')
+        .eq('id', plan_id) # filter to only the plan the user is generating the report for
+        .execute()
+    )
+    pdf_filename = response.data[0]['pdf_filename']
+
+    # Now we know the full path, so can proceed to download:
+    pdf_path = user_id + '/pdf/' + pdf_filename
+    response = supabase.storage.from_('user-files').download(pdf_path) # my bucket is called user-files
+    stream = BytesIO(response) # response from .download is raw bytes, which we want to convert to a byte stream
+    
+    return stream # this stream can now be called directly in fitz.open() method
 
 
 # MAIN
@@ -117,4 +135,6 @@ def get_data(access_token:str, refresh_token:str, user_id:str, plan_id:str, prio
     priority_marker_ids = get_priority_marker_ids(supabase, plan_id, priority_limit)
     priority_marker_records = get_priority_marker_records(marker_records, priority_marker_ids)
 
-    return marker_records, priority_marker_records, marker_images
+    plan_pdf = get_pdf(supabase, user_id, plan_id)
+
+    return marker_records, priority_marker_records, marker_images, plan_pdf

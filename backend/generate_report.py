@@ -3,6 +3,8 @@ from docx.shared import Inches
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image # installed as pip install Pillow
+import fitz # installed as pip install pymupdf
+from io import BytesIO
 from get_cloud_data import get_data
 
 def generate_report(access_token, refresh_token, user_id, plan_id, priority_limit=5, include_caption=False):
@@ -11,7 +13,7 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
     MAX_WIDTH = 5
     MAX_HEIGHT = 5
 
-    marker_records, priority_marker_records, marker_images = get_data(access_token, refresh_token, user_id, plan_id, priority_limit)
+    marker_records, priority_marker_records, marker_images, plan_pdf_stream = get_data(access_token, refresh_token, user_id, plan_id, priority_limit)
 
     # Start from blank template with styles & footer defined:
     doc = Document("template.docx")
@@ -81,10 +83,13 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
         marker_id = record['id']
         images = marker_images[marker_id]
 
+        pdf_start_row = 4 # 0-based. PDF image is shown after text rows
         if include_caption:
-            num_rows = 4 + 2*len(images)
+            image_start_row = pdf_start_row + 2 # 0-based. images start after text rows, then PDF row, then PDF caption
+            num_rows = pdf_start_row + 2 + 2*len(images) # total (not just image) rows. +1 because pdf_start_row is base-0, +1 again because of PDF caption row 
         else:
-            num_rows = 4 + len(images)
+            image_start_row = pdf_start_row + 1 # 0-based. images start after text rows, then PDF row
+            num_rows = pdf_start_row + 1 + len(images) # total (not just image) rows. +1 because pdf_start_row is base-0
         
         table = doc.add_table(rows=num_rows, cols=2)
         table.style = 'Table Grid'
@@ -106,49 +111,96 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
 
         for i in range(1,4):
             left_cell = table.cell(i, 0)
-            right_cell = table.cell(i, 0)
-            left_cell.width = Inches(1.2)
+            left_cell.width = Inches(1.2) # right cell automatically changes so page width is still filled
+
+        # PDF
+
+        page_number = record['page_number']
+        x = record['x']
+        y = record['y']
+        marked_image = mark_plan(plan_pdf_stream, page_number, x, y)
+        paragraph = create_paragraph(table, pdf_start_row, align='center')
+        insert_image(marked_image, paragraph, MAX_WIDTH, MAX_HEIGHT)
+        if include_caption:
+            paragraph = create_paragraph(table, pdf_start_row+1, style='Caption')
+            run = paragraph.add_run("Item location on plan")
+
+        # IMAGES
 
         if len(images) == 0: continue # do not try to create image rows if there are no images; skip to the next record
 
         if include_caption:
-            image_rows = range(4, 3 + 2*len(images)) # e.g. if 1 image, image_rows=[4]; if 2 images, image_rows=[4,6]; etc.
+            image_rows = range(image_start_row, image_start_row - 1 + 2*len(images), 2) # e.g. if 1 image, image_rows=[image_start_row]; if 2 images, image_rows=[image_start_row, image_start_row + 2]; etc.
         else:
-            image_rows = range(4, 4 + len(images))
+            image_rows = range(image_start_row, image_start_row + len(images))
 
-        count = 0
         for row_index, image in zip(image_rows, images):
-            image_cell1 = table.cell(row_index, 0)
-            image_cell2 = table.cell(row_index, 1)
-            image_cell = image_cell1.merge(image_cell2)
-            paragraph = image_cell.paragraphs[0]
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER # for centred image
-            run = paragraph.add_run()
-
-            # Set up image sizing:
-            with Image.open(image) as img:
-                width_px, height_px = img.size
-                dpi = img.info.get('dpi', (72, 72))  # default DPI if not present
-                width_in = width_px / dpi[0]
-                height_in = height_px / dpi[1]
-
-                # Scale down if larger than max dimensions:
-                scale = min(MAX_WIDTH / width_in, MAX_HEIGHT / height_in, 1.0)
-                new_width = Inches(width_in * scale)
-                new_height = Inches(height_in * scale)
-
-                # Insert:
-                run.add_picture(images[count], width=new_width, height=new_height)
-
-            count += 1
+            paragraph = create_paragraph(table, row_index, align='center') # for merged cell with centred image
+            with Image.open(image) as img: # get image as Pillow image
+                insert_image(img, paragraph, MAX_WIDTH, MAX_HEIGHT)
 
             if include_caption:
-                caption_1 = table.cell(row_index+1, 0)
-                caption_2 = table.cell(row_index+1, 1)
-                caption = caption_1.merge(caption_2)
-                paragraph = caption.paragraphs[0]
-                paragraph.style = 'Caption'
+                paragraph = create_paragraph(table, row_index+1, style='Caption')
                 run = paragraph.add_run("This is a caption")
 
     return doc
 
+
+def create_paragraph(table, row_index, align=None, style=None):
+    cell1 = table.cell(row_index, 0)
+    cell2 = table.cell(row_index, 1)
+    merged_cell = cell1.merge(cell2)
+    paragraph = merged_cell.paragraphs[0]
+    if align == 'centre' or align == 'center':
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if style:
+        paragraph.style = style
+    return paragraph
+
+
+# Image is Pillow image, max width and max height are in inches:
+def insert_image(image, paragraph, max_width, max_height):
+    
+    width_px, height_px = image.size
+    dpi = image.info.get('dpi', (72, 72))  # default DPI if not present
+    width_in = width_px / dpi[0]
+    height_in = height_px / dpi[1]
+
+    # Scale down if larger than max dimensions:
+    scale = min(max_width / width_in, max_height / height_in, 1.0)
+    new_width = Inches(width_in * scale)
+    new_height = Inches(height_in * scale)
+
+    # Convert to bytes in memory (as can't pass Pillow object directly to python-docx add_picture method):
+    image_stream = BytesIO()
+    image.save(image_stream, format="PNG") # convert image to bytes in memory 
+    image_stream.seek(0) # rewind for reading
+
+    # Insert:
+    run = paragraph.add_run()
+    run.add_picture(image_stream, width=new_width, height=new_height)
+
+
+# Returns marked plan as Pillow Image object (note python-docx can't insert PDF or SVG, so we have to convert to regular image):
+def mark_plan(pdf_stream, page_number, x, y):
+
+    doc = fitz.open(stream=pdf_stream, filetype='pdf')
+    page = doc.load_page(page_number - 1)
+    
+    # Convert to Pillow (required to then allow overlay of pin marker):
+    zoom = 1 # such that 1 PDF point will map to "zoom" PX units
+    matrix = fitz.Matrix(zoom, zoom)
+    pixmap = page.get_pixmap(matrix=matrix) # get pixmap (image) from PDF
+    pdf_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples) # get Pillow Image object from pixmap
+
+    # As we know the scale of the pixmap is created from the zoom variable, we can immediately convert x and y (pt) to px:
+    x_px = int(x * zoom)
+    y_px = int(y * zoom)
+    # ^ Note later .paste() method requires integer coords
+
+    # Convert to Pillow to then allow overlay of pin marker:
+    pdf_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+    marker_image = Image.open("Frame 12.png").convert("RGBA")
+    pdf_image.paste(marker_image, (x_px, y_px), marker_image)
+
+    return pdf_image
