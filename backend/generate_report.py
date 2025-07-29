@@ -9,7 +9,7 @@ from get_cloud_data import get_data
 
 def generate_report(access_token, refresh_token, user_id, plan_id, priority_limit=5, include_caption=False):
 
-    MARKER_PATH = "Frame 12.png"
+    MARKER_PATH = "marker.png"
 
     # max dimensions of item images (inches):
     MAX_WIDTH = 5
@@ -190,27 +190,47 @@ def mark_plan(marker_path, pdf_stream, page_number, x, y, color):
     doc = fitz.open(stream=pdf_stream, filetype='pdf')
     page = doc.load_page(page_number - 1)
     
-    # Convert to Pillow (required to then allow overlay of pin marker):
-    zoom = 1 # such that 1 PDF point will map to "zoom" IMAGE pixels (not device pixels or CSS pixels)
+    # Get page dimensions:
+    rect = page.rect
+    width = rect.width
+    height = rect.height
+    scale = min(width, height) / 595.28 # 595.28 is width of A4 page in pt, noting that marker png is originally sized to look appropriate on an A4 page (so we will want to scale it up by this amount)
+    
+    # Convert PDF to Pillow Image (required to then allow overlay of pin marker):
+    zoom = 1/scale # such that 1 PDF point will map to "zoom" IMAGE pixels (not device pixels or CSS pixels). We divide by scale so that a big PDF is given just as many pixels as a small PDF (as the image will ultimately be the same size anyway)
     matrix = fitz.Matrix(zoom, zoom)
     pixmap = page.get_pixmap(matrix=matrix) # get pixmap (image) from PDF
     pdf_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples) # get Pillow Image object from pixmap
-
-    # As we know the scale of the pixmap is created from the "zoom" variable, we can immediately convert x and y (pt) to image pixels (px):
-    x_px = int(x * zoom)
-    y_px = int(y * zoom)
-    # ^ This satisfies later .paste() method, which requires integer coords in units of image pixels
-
-    # Convert to Pillow to then allow overlay of pin marker:
-    pdf_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+    
+    # Get marker image of appropriate color and size (note, width and height here are for the marker's rectangular bounding box, so doesn't matter than the marker itself is not a rectangle):
     marker_image = Image.open(marker_path).convert("RGBA")
     marker_image = recolor_marker(marker_image, color)
-    pdf_image.paste(marker_image, (x_px, y_px), marker_image)
+    w, h = marker_image.size
+    new_size = (int(w * scale), int(h * scale)) # if scale relative to A4 page is bigger, marker will be bigger, and vice versa
+    marker_image = marker_image.resize(new_size, resample=Image.LANCZOS)
 
-    return pdf_image
+    # As we know the scale of the pixmap is created from the "zoom" variable, we can immediately convert x and y (pt) to image pixels (px):
+    x_px = x * zoom
+    y_px = y * zoom
+
+    # If marker is too close to edge, may be clipped off. So, add padding around the PDF image equal to marker size to prevent this:
+    padding_left = new_size[0] # we will also make padding_right equal to this
+    padding_top = new_size[1] # we will also make padding_bottom equal to this
+    padded_canvas = Image.new("RGB", (pdf_image.width + 2*padding_left, pdf_image.height + 2*padding_top), color=(255, 255, 255))
+    padded_canvas.paste(pdf_image, (padding_left, padding_top))
+    
+    # Overlay marker image onto PDF:
+    # Marker is pasted according to top-left corner of bounding box. Have to modify x and y, as these specify the BOTTOM MIDDLE of bounding box.
+    # Also have to modify x and y further, to reflect the padding of the padded_canvas
+    # Also note paste location must be tuple of INTEGERS.
+    x_px_topleft = int(x_px - new_size[0] / 2 + padding_left)
+    y_px_topleft = int(y_px - new_size[1] + padding_top)
+    padded_canvas.paste(marker_image, (x_px_topleft, y_px_topleft), marker_image)
+
+    return padded_canvas
 
 
-# color may be string hex code or RGB tuple:
+# color may be string hex code or RGBA tuple:
 def recolor_marker(marker_image, new_color):
 
     # If no color (e.g. user has not selected category for that marker), default to #9cc7b8 "--mid-accent-color" (hardcoded, could improve to use one source of truth in future):
@@ -225,8 +245,8 @@ def recolor_marker(marker_image, new_color):
 
     new_data = []
     for item in datas:
-        # Detect white (tweak threshold for anti-aliasing if needed):
-        if item[0] > 250 and item[1] > 250 and item[2] > 250 and item[3] > 0:
+        # Detect white (with threshold tweaked for anti-alising):
+        if item[0] > 200 and item[1] > 200 and item[2] > 200 and item[3] > 0:
             new_data.append((*new_color, item[3])) # preserve alpha
         else:
             new_data.append(item)
