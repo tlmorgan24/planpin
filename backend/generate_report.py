@@ -9,6 +9,8 @@ from get_cloud_data import get_data
 
 def generate_report(access_token, refresh_token, user_id, plan_id, priority_limit=5, include_caption=False):
 
+    MARKER_PATH = "Frame 12.png"
+
     # max dimensions of item images (inches):
     MAX_WIDTH = 5
     MAX_HEIGHT = 5
@@ -118,7 +120,8 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
         page_number = record['page_number']
         x = record['x']
         y = record['y']
-        marked_image = mark_plan(plan_pdf_stream, page_number, x, y)
+        color = record['color'] # note color is already associated with marker as part of get_data function, even though in my database, color is part of the categories table (not markers table)
+        marked_image = mark_plan(MARKER_PATH, plan_pdf_stream, page_number, x, y, color)
         paragraph = create_paragraph(table, pdf_start_row, align='center')
         insert_image(marked_image, paragraph, MAX_WIDTH, MAX_HEIGHT)
         if include_caption:
@@ -182,7 +185,7 @@ def insert_image(image, paragraph, max_width, max_height):
 
 
 # Returns marked plan as Pillow Image object (note python-docx can't insert PDF or SVG, so we have to convert to regular image):
-def mark_plan(pdf_stream, page_number, x, y):
+def mark_plan(marker_path, pdf_stream, page_number, x, y, color):
 
     doc = fitz.open(stream=pdf_stream, filetype='pdf')
     page = doc.load_page(page_number - 1)
@@ -200,7 +203,37 @@ def mark_plan(pdf_stream, page_number, x, y):
 
     # Convert to Pillow to then allow overlay of pin marker:
     pdf_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
-    marker_image = Image.open("Frame 12.png").convert("RGBA")
+    marker_image = Image.open(marker_path).convert("RGBA")
+    marker_image = recolor_marker(marker_image, color)
     pdf_image.paste(marker_image, (x_px, y_px), marker_image)
 
     return pdf_image
+
+
+# color may be string hex code or RGB tuple:
+def recolor_marker(marker_image, new_color):
+
+    # If no color (e.g. user has not selected category for that marker), default to #9cc7b8 "--mid-accent-color" (hardcoded, could improve to use one source of truth in future):
+    if new_color is None:
+        new_color = '#9cc7b8'
+
+    # Convert hex to RGB if needed
+    if isinstance(new_color, str):
+        new_color = hex_to_rgb(new_color)
+
+    datas = marker_image.getdata()
+
+    new_data = []
+    for item in datas:
+        # Detect white (tweak threshold for anti-aliasing if needed):
+        if item[0] > 250 and item[1] > 250 and item[2] > 250 and item[3] > 0:
+            new_data.append((*new_color, item[3])) # preserve alpha
+        else:
+            new_data.append(item)
+
+    marker_image.putdata(new_data)
+    return marker_image
+
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))

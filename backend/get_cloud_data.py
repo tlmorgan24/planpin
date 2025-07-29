@@ -50,6 +50,23 @@ def get_category_records(supabase):
     )
     return response.data
 
+def incorporate_category_data(supabase, marker_records):
+    # Associate category information with each marker record (for easier reference):
+    category_records = get_category_records(supabase)
+    updated_marker_records = []
+    for marker_record in marker_records:
+        category_id = marker_record['category_id']
+        category_record = next((record for record in category_records if record['id'] == category_id), None)
+        if category_record:
+            category_name = category_record['category_name']
+            color = category_record['color']
+        else:
+            category_name = None
+            color = None
+        marker_record.update({'category_name': category_name, 'color': color}) # modifies dictionary in-place
+        updated_marker_records.append(marker_record)
+    return updated_marker_records
+
 
 # Get image filenames associated with a given marker ID
 def get_image_filenames(supabase, marker_id:str):
@@ -116,21 +133,7 @@ def get_data(access_token:str, refresh_token:str, user_id:str, plan_id:str, prio
     if not priority_limit: 
         return marker_records, [], marker_images
 
-    # Associate category information with each marker record (for easier reference):
-    category_records = get_category_records(supabase)
-    updated_marker_records = []
-    for marker_record in marker_records:
-        category_id = marker_record['category_id']
-        category_record = next((record for record in category_records if record['id'] == category_id), None)
-        if category_record:
-            category_name = category_record['category_name']
-            color = category_record['color']
-        else:
-            category_name = None
-            color = None
-        marker_record.update({'category_name': category_name, 'color': color}) # modifies dictionary in-place
-        updated_marker_records.append(marker_record)
-    marker_records = updated_marker_records
+    marker_records = incorporate_category_data(supabase, marker_records) # to add 'color' and 'category_name' to each marker record
         
     priority_marker_ids = get_priority_marker_ids(supabase, plan_id, priority_limit)
     priority_marker_records = get_priority_marker_records(marker_records, priority_marker_ids)
