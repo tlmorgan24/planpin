@@ -49,7 +49,7 @@ export default function SettingsModal() {
                 , <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>, via Wikimedia Commons.
             </p>
 
-            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
+            <img className="bottom-logo" src="/logo-text-beside.svg" />
 
             {/* 
             When user clicks "Delete account" button, we show confirmation modal. 

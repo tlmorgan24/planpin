@@ -38,8 +38,9 @@ export function GenerateReportButton() {
         const accessToken = data.session.access_token;
         const refreshToken = data.session.refresh_token;
 
-        const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
-        const serverPort = import.meta.env.VITE_SERVER_PORT;
+        //const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
+        //const serverPort = import.meta.env.VITE_SERVER_PORT;
+        const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
         const postData = {
             access_token: accessToken,
@@ -52,7 +53,8 @@ export function GenerateReportButton() {
 
         try {
 
-            const response = await fetch(`http://${serverIp}:${serverPort}/generate_report`, {
+            //const response = await fetch(`http://${serverIp}:${serverPort}/generate_report`, {
+            const response = await fetch(`${backendUrl}/generate_report`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

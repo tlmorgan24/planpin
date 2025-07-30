@@ -44,7 +44,7 @@ export default function Auth() {
                 See the <a href="/privacy-policy">privacy policy</a>.<br/>
                 Got questions? <a href="/contact">Get in touch</a>.
             </p>
-            <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
+            <img className="bottom-logo" src="/logo-text-beside.svg" />
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
     );
@@ -241,15 +241,17 @@ export async function deleteAccount(supabase, sqliteDb, userId, setUserId, saveD
 
     async function deleteUser(userId) {
 
-        const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
-        const serverPort = import.meta.env.VITE_SERVER_PORT;
+        //const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
+        //const serverPort = import.meta.env.VITE_SERVER_PORT;
+        const backendUrl = import.meta.env.VITE_BACKEND_URL;
         const data = {
             user_id: userId,
         }
 
         try {
 
-            const response = await fetch(`http://${serverIp}:${serverPort}/delete_user`, {
+            //const response = await fetch(`http://${serverIp}:${serverPort}/delete_user`, {
+            const response = await fetch(`${backendUrl}/delete_user`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

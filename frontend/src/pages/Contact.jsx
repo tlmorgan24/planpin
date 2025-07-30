@@ -15,12 +15,14 @@ export default function Contact() {
 
         toast.loading('Sending message...', {id: 'loading'});
 
-        const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
-        const serverPort = import.meta.env.VITE_SERVER_PORT;
+        //const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
+        //const serverPort = import.meta.env.VITE_SERVER_PORT;
+        const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
         try {
 
-            const response = await fetch(`http://${serverIp}:${serverPort}/forward_message`, {
+            //const response = await fetch(`http://${serverIp}:${serverPort}/forward_message`, {
+            const response = await fetch(`${backendUrl}/forward_message`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -92,7 +94,7 @@ export default function Contact() {
 
             </form>
 
-            <a href="/"><img className="bottom-logo" src="/src/assets/logo-text-beside.svg" /></a>
+            <a href="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></a>
 
         </div>
     );

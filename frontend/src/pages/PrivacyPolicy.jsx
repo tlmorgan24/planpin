@@ -58,7 +58,7 @@ export default function PrivacyPolicy() {
 
             </div>
 
-            <a href="/"><img className="bottom-logo" src="/src/assets/logo-text-beside.svg" /></a>
+            <a href="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></a>
         </div>
     );
 }
