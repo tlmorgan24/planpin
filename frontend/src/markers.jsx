@@ -59,6 +59,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
     const pageNum = page.pageNumber;
     const {clickLocations, setClickLocations, planId} = useContext(PlanContext);
     const {db, supabase} = useContext(DbContext);
+    const {userId, allowedMarkers} = useContext(UserContext);
 
     const [markerLocations, setMarkerLocations] = useState([]); // will be array of id, canvasX, and canvasY. id same as in database, canvas coordinates in CSS px.
     const [clickedId, setClickedId] = useState(null); // to track which marker was just clicked or added (will be null on first render, even if there are markers already stored in database)
@@ -71,13 +72,49 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
 
     // Define function to add clickLocation (hence marker) when user clicks:
     async function handleClick(e) {
+
         if (!mapping || !drawnWindow) return;
-        if (e.target == markerLayerRef.current) { // click is not on a Marker; it is on blank space of the MarkerLayer itself
-            await addMarker(e, mapping, drawnWindow, pageNum, setClickLocations, setClickedId);
-            // ^ Thanks to the if statement, we ensure e.target is the MarkerLayer itself. 
-            // This is important, as addMarker assumes e.target has same location & dimensions as canvas.
-            // As per our CSS, MarkerLayer does have same location & dimensions as canvas. 
+        if (e.target !== markerLayerRef.current) return; // we only want to handle clicks on the blank space of the MarkerLayer itself, not on a Marker
+        
+        // First, check if user is allowed a new marker according to their quota (based on subscription plan):
+        if (allowedMarkers === undefined) {
+            toast.error('Failed to associate your account with a subscription plan')
+            return;
         }
+        let markerCount = 0;
+        if (Capacitor.getPlatform() !== 'web') { // on native mobile (SQLite)
+            const result = await db.query(
+                `
+                    SELECT COUNT(*) AS count
+                    FROM markers m
+                    JOIN plans p ON m.plan_id = p.id
+                    WHERE p.user_id = ?
+                        AND m.deleted_at IS NULL
+                `,
+                [userId]
+            );
+            markerCount = result.values[0].count;
+        }
+        else { // on web (Supabase)
+            const { count, error } = await supabase // note it returns "count" instead of "data", as we specify count in the .select method
+                .from('user_markers') // view already filtered to current user
+                .select('*', { count: 'exact', head: true }) // head: true prevents row data being returned (as unnecessary for our purposes)
+                .is('deleted_at', null);
+            if (error) console.error('Error fetching count: ', error);
+            markerCount = count;
+        }
+        if (markerCount >= allowedMarkers) {
+            toast.info((<div>You have already reached your limit of {allowedMarkers} items. Please <a href='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</a> or delete existing items or plans to add more.</div>));
+            return;
+        }
+
+        // Now, we are sure user is allowed to add a new marker.
+        
+        await addMarker(e, mapping, drawnWindow, pageNum, setClickLocations, setClickedId);
+        // ^ Thanks to the if statement, we ensure e.target is the MarkerLayer itself. 
+        // This is important, as addMarker assumes e.target has same location & dimensions as canvas.
+        // As per our CSS, MarkerLayer does have same location & dimensions as canvas. 
+    
     }
 
     return(                        
@@ -107,7 +144,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     (defined in app context). Currently, the app is set up to save all PDFs and images at the top level of the user's pdf & image folders.
     */
 
-    const {saveDir, imageFolder} = useContext(UserContext);
+    const {userId, saveDir, imageFolder, allowedImages} = useContext(UserContext);
     const {categoryOptionsData} = useContext(AppContext); // options for category data to assign to marker (populated based off categories table of database for this user). Array of objects, each with an id, category_name and color property
 
     const [imageIds, setImageIds] = useState([]); // will be array of file names for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
@@ -318,6 +355,42 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     }
 
     async function onAddPhoto() {
+
+        // First, check if user is allowed a new image according to their quota (based on subscription plan):
+        if (allowedImages === undefined) {
+            toast.error('Failed to associate your account with a subscription plan')
+            return;
+        }
+        let imageCount = 0;
+        if (Capacitor.getPlatform() !== 'web') { // on native mobile (SQLite)
+            const result = await db.query(
+                `
+                    SELECT COUNT(*) AS count
+                    FROM images i
+                    JOIN markers m ON i.marker_id = m.id
+                    JOIN plans p ON m.plan_id = p.id
+                    WHERE p.user_id = ?
+                        AND i.deleted_at IS NULL
+                `,
+                [userId]
+            );
+            imageCount = result.values[0].count;
+        }
+        else { // on web (Supabase)
+            const { count, error } = await supabase // note it returns "count" instead of "data", as we specify count in the .select method
+                .from('user_images') // view already filtered to current user
+                .select('*', { count: 'exact', head: true }) // head: true prevents row data being returned (as unnecessary for our purposes)
+                .is('deleted_at', null);
+            if (error) console.error('Error fetching count: ', error);
+            imageCount = count;
+        }
+        if (imageCount >= allowedImages) {
+            toast.info((<div>You have already reached your limit of {allowedImages} images. Please <a href='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</a> or delete existing images (or image-containing items or plans) to add more.</div>));
+            return;
+        }
+
+        // Now, we are sure user is allowed to add a new image.
+
         const image = await captureImage(); // image object is as saved from Camera.getPhoto
         toast.loading("Adding image...", {id: 'loading'}); // this toast must come AFTER captureImage, because otherwise, if user cancels image capture, loading toast will persist
         setNewImages(prev => [...prev, image]); // add new image to newImages array
@@ -570,10 +643,12 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 </div>
                 
                 {/* Extent of item, 0-5 (0 being no defect; 5 being full extent of element): */}
+                {/* REMOVED FOR NOW, for cleaner interface, as extent is not an important property
                 <div className="form-item">
                     <label htmlFor="extent">Extent</label>
                     <input id="extent" name="extent" type="number" value={formValues.extent} onChange={handleFormChange} />
                 </div>
+                */}
 
                 {/* Existing images (in database) associated with item: */}
                 {imageUris.map((imageUri, i) => (
@@ -597,12 +672,6 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                     <button type="button" onClick={onRequestClose}>Cancel</button>
                     <MarkerDeleteButton markerId={clickedId} markerInDb={markerInDb} setClickLocations={setClickLocations} closeModal={closeModal} />
                 </div>
-
-                {/* 
-                Put logo inside <form> rather than outside, as otherwise will get a double logo during loading 
-                (as this logo would not be hidden during loading, and Loading.jsx's logo will also be showing): 
-                */}
-                <img className="bottom-logo" src="/src/assets/logo-text-beside.svg" />
 
             </form>
             

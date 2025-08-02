@@ -22,7 +22,7 @@ function UserProvider({children}) {
     
     let saveDirectory = null;
     if (Capacitor.getPlatform() !== 'web') {
-        saveDirectory = Directory.Documents;
+        saveDirectory = Directory.Data;
     }
     const [saveDir, setSaveDir] = useState(saveDirectory); // root directory of local Filesystem to save/load PDFs and images to/from (null if on web; will save/load directly to Supabase user-files bucket)
     const [pdfFolder, setPdfFolder] = useState(undefined); // path from saveDir to folder in/from which to save/load PDFs
@@ -34,7 +34,14 @@ function UserProvider({children}) {
     (because userId is set to "guest").
     */
 
-    // Values will be set on login within Auth.jsx (Auth.jsx is single source of truth for userId, pdfFolder and imageFolder).
+    // Quotas to be set based on subscription plan:
+    const [subscriptionTier, setSubscriptionTier] = useState(undefined);
+    const [allowedPlans, setAllowedPlans] = useState(undefined);
+    const [allowedMarkers, setAllowedMarkers] = useState(undefined);
+    const [allowedImages, setAllowedImages] = useState(undefined);
+    const [allowedReportsThisBillingCycle, setAllowedReportsThisBillingCycle] = useState(undefined);
+
+    // All values will be set on login within Auth.jsx (Auth.jsx is single source of truth, except for saveDir which just uses the initial value set here).
 
     return (
         <UserContext.Provider value={{
@@ -42,6 +49,11 @@ function UserProvider({children}) {
             pdfFolder, setPdfFolder,
             imageFolder, setImageFolder,
             saveDir, setSaveDir,
+            subscriptionTier, setSubscriptionTier,
+            allowedPlans, setAllowedPlans,
+            allowedMarkers, setAllowedMarkers,
+            allowedImages, setAllowedImages,
+            allowedReportsThisBillingCycle, setAllowedReportsThisBillingCycle,
         }}>
         {children}
         </UserContext.Provider>

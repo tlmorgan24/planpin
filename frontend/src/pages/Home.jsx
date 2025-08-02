@@ -85,9 +85,8 @@ export default function Home() {
         <HomeProvider>
             <div className="home-container">
                 <div className="non-plans">
-                    {Capacitor.getPlatform() !== 'web' ? <SyncButton /> : null} {/* only show sync button on mobile app */}
                     <h1>My Plans</h1>
-                    <RefreshPlansButton />
+                    {/* <RefreshPlansButton /> */}
                     <SettingsButton />
                 </div>
                 <Plans/>
@@ -128,7 +127,7 @@ function SettingsButton() {
 function PDFInput() {
 
     const {db, supabase} = useContext(DbContext);
-    const {userId, pdfFolder, saveDir} = useContext(UserContext);
+    const {userId, pdfFolder, saveDir, allowedPlans} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
     
     const handleUpload = async function(e) {
@@ -136,6 +135,39 @@ function PDFInput() {
         e.preventDefault();
         if (pdfFolder === undefined) return;
         toast.loading("Loading...", { id: 'uploading' });
+
+        // First, check if user is allowed a new plan according to their quota (based on subscription plan):
+        if (allowedPlans === undefined) {
+            toast.error('Failed to associate your account with a subscription plan', { id: 'uploading' })
+            return;
+        }
+        let planCount = 0;
+        if (Capacitor.getPlatform() !== 'web') { // on native mobile (SQLite)
+            const result = await db.query(
+                `
+                    SELECT COUNT(*) AS count
+                    FROM plans
+                    WHERE user_id = ?
+                      AND deleted_at IS NULL
+                `,
+                [userId]
+            );
+            planCount = result.values[0].count;
+        }
+        else { // on web (Supabase)
+            const { count, error } = await supabase // note it returns "count" instead of "data", as we specify count in the .select method
+                .from('user_plans') // view already filtered to current user
+                .select('*', { count: 'exact', head: true }) // head: true prevents row data being returned (as unnecessary for our purposes)
+                .is('deleted_at', null);
+            if (error) console.error('Error fetching count: ', error);
+            planCount = count;
+        }
+        if (planCount >= allowedPlans) {
+            toast.info((<div>You have already reached your limit of {allowedPlans} plans. Please <a href='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</a> or delete existing plans to add more.</div>), { id: 'uploading' });
+            return;
+        }
+
+        // Now, we are sure user is allowed to add a new plan.
 
         const id = crypto.randomUUID(); // Database ID for PDF to add (will always be unique)
 
@@ -197,11 +229,16 @@ function PDFInput() {
             Also, rather than a traditional form with submit button (which would require user to select submit after
             selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
             */}
-            <label className="custom-file-input" htmlFor="file-input">
-                <img src="/clipboard-arrow.svg" />
-                <button className="accented" type="button" style={{pointerEvents: "none"}}>Upload a PDF</button> {/* note making this a "button" has no functional use, as the label is the real button, but just for nice formatting */}
-            </label>
-            <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/>
+            <div className="big-buttons-container">
+                <label className="button-like" htmlFor="file-input">
+                    {/* I am commenting out this icon, as doesn't fit on mobile: 
+                    <img className="padded-icon" src="/clipboard-arrow.svg" />
+                    */}
+                    Upload PDF
+                </label>
+                {Capacitor.getPlatform() !== 'web' ? <SyncButton /> : null} {/* only show sync button on mobile app */}
+            </div>
+            <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/> {/* must be outside big-buttons-container so buttons inside are properly formatted */}
         </div>
     );
     

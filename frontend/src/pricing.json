@@ -1,0 +1,32 @@
+[
+    {
+        "id": "starter",
+        "name": "Starter",
+        "poundsPerMonth": 0,
+        "plans": 2,
+        "items": 20,
+        "images": 20,
+        "reportsPerMonth": 3,
+        "extraFeatures": []
+    },
+    {
+        "id": "standard",
+        "name": "Standard",
+        "poundsPerMonth": 9,
+        "plans": 5,
+        "items": 150,
+        "images": 150,
+        "reportsPerMonth": 10,
+        "extraFeatures": []
+    },
+    {
+        "id": "professional",
+        "name": "Professional",
+        "poundsPerMonth": 29,
+        "plans": 10,
+        "items": 1000,
+        "images": 2000,
+        "reportsPerMonth": 20,
+        "extraFeatures": []
+    }
+]

@@ -40,6 +40,7 @@ export default function SettingsModal() {
                 <button type="button" className="bad" onClick={onRequestDelete}>Delete account</button>
             </div>
             <p>
+                <a href="/pricing">Subscription plans</a><br />
                 <a href="/contact">Contact</a><br/>
                 <a href="/privacy-policy">Privacy policy</a>
             </p>

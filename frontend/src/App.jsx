@@ -10,6 +10,7 @@ import Auth from './pages/Auth';
 import Loading from './pages/Loading';
 import Contact from './pages/Contact';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import Pricing from './pages/Pricing';
 import SettingsModal from './SettingsModal';
 import { CategoriesModal } from './categories';
 
@@ -86,6 +87,7 @@ export default function App() {
                 <BrowserRouter>
                     <Routes>
                         {/* if user not signed in or guest, Home and Plan pages are inaccessible, and Auth page is shown instead: */}
+                        {/* note "*" path means all paths NOT in route (i.e. all paths except contact, privacy-policy and pricing) will go to auth screen */}
                         {userId === undefined ? 
                             <Route path="*" element={<Auth />} />
                             : 
@@ -94,9 +96,10 @@ export default function App() {
                                 <Route path="/plan" element={<Plan />} />
                             </>
                         }
-                        {/* Contact and Privacy Policy pages accessible regardless: */}
+                        {/* Contact, Privacy Policy and Pricing pages accessible regardless: */}
                         <Route path="/contact" element={<Contact />} />
-                        <Route path="/privacy-policy" element={<PrivacyPolicy />} /> 
+                        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                        <Route path="/pricing" element={<Pricing />} />
                     </Routes>
                     {userId === undefined ? 
                         null

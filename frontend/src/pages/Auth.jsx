@@ -33,14 +33,17 @@ export default function Auth() {
             <div className='big-buttons-container'>
                 <button onClick={signUp}>Sign up</button>
                 <button onClick={logIn}>Log in</button>
+                {/* I am removing the "continue as guest" option for now:
                 {Capacitor.getPlatform() !== 'web' ? 
                     <>
                     <button className="big-button" onClick={continueAsGuest}>Continue as guest</button>
                     <p>If you continue as guest, you will not be able to sync to cloud or generate reports</p>
                     </>
                 : null}
+                */}
             </div>
             <p>
+                Sign up for free. See available <a href="/pricing">subscription plans</a>.<br/>
                 See the <a href="/privacy-policy">privacy policy</a>.<br/>
                 Got questions? <a href="/contact">Get in touch</a>.
             </p>

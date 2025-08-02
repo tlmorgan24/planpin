@@ -56,7 +56,12 @@ export function SyncButton() {
 
     return(
         <>
-            <button type="button" className="accented" onClick={handleClick}>Sync</button>
+            <button type="button" className="accented" onClick={handleClick}>
+                {/* I am commenting out this icon, as doesn't fit on mobile: 
+                <img src="/cloud.svg" />
+                */}
+                Sync
+            </button>
             <Modal className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={modalIsOpen} >
                 <Loading message="Please wait..." />
             </Modal>

@@ -11,7 +11,7 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
 
     MARKER_PATH = "marker.png"
 
-    # max dimensions of item images (inches):
+    # max dimensions of images (inches):
     MAX_WIDTH = 5
     MAX_HEIGHT = 5
 
@@ -122,10 +122,10 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
         y = record['y']
         color = record['color'] # note color is already associated with marker as part of get_data function, even though in my database, color is part of the categories table (not markers table)
         marked_image = mark_plan(MARKER_PATH, plan_pdf_stream, page_number, x, y, color)
-        paragraph = create_paragraph(table, pdf_start_row, align='center')
+        paragraph = create_merged_paragraph(table, pdf_start_row, align='center')
         insert_image(marked_image, paragraph, MAX_WIDTH, MAX_HEIGHT)
         if include_caption:
-            paragraph = create_paragraph(table, pdf_start_row+1, style='Caption')
+            paragraph = create_merged_paragraph(table, pdf_start_row+1, style='Caption')
             run = paragraph.add_run("Item location on plan")
 
         # IMAGES
@@ -138,18 +138,20 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
             image_rows = range(image_start_row, image_start_row + len(images))
 
         for row_index, image in zip(image_rows, images):
-            paragraph = create_paragraph(table, row_index, align='center') # for merged cell with centred image
+            paragraph = create_merged_paragraph(table, row_index, align='center') # for merged cell with centred image
             with Image.open(image) as img: # get image as Pillow image
                 insert_image(img, paragraph, MAX_WIDTH, MAX_HEIGHT)
 
             if include_caption:
-                paragraph = create_paragraph(table, row_index+1, style='Caption')
+                paragraph = create_merged_paragraph(table, row_index+1, style='Caption')
                 run = paragraph.add_run("This is a caption")
+
+        doc.add_paragraph(style="Normal") # blank line after each table
 
     return doc
 
 
-def create_paragraph(table, row_index, align=None, style=None):
+def create_merged_paragraph(table, row_index, align=None, style=None):
     cell1 = table.cell(row_index, 0)
     cell2 = table.cell(row_index, 1)
     merged_cell = cell1.merge(cell2)

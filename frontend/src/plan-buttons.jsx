@@ -7,6 +7,7 @@ import { PlanContext } from "./pages/Plan"; // to access context variables
 import { useNavigate } from "react-router-dom";
 import { saveFile } from "./pdf-setup";
 import { Capacitor } from "@capacitor/core";
+import { fullSync } from "./sync";
 
 
 // -- BACK TO HOME --
@@ -25,13 +26,18 @@ export function HomeButton() {
 
 export function GenerateReportButton() {
 
-    const {userId, saveDir} = useContext(UserContext);
-    const {supabase} = useContext(DbContext);
+    const {userId, pdfFolder, imageFolder, saveDir} = useContext(UserContext);
+    const {db, supabase} = useContext(DbContext);
     const {planId} = useContext(PlanContext);
 
     async function generateReport() {
 
         toast.loading('Generating report...', {id: 'loading'});
+        
+        // First, ensure fully synced with cloud if on mobile (as all reports are generated from cloud data):
+        if (Capacitor.getPlatform() !== 'web') {
+            fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir);
+        }
 
         const { data, error } = await supabase.auth.getSession();
         if (error) console.error("Error: ", error);

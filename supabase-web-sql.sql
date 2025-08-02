@@ -20,8 +20,13 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT,
   company TEXT,
   country TEXT,
+  subscription_tier TEXT NOT NULL DEFAULT 'free',
+  billing_cycle_start TIMESTAMPTZ,
+  billing_cycle_end TIMESTAMPTZ,
+  reports_this_billing_cycle INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
+  subscription_changed_at TIMESTAMPTZ,
   -- note, no synced_at, as this is only relevant locally on a per-device basis
   deleted_at TIMESTAMPTZ
 );
