@@ -3,7 +3,8 @@ import { Capacitor } from "@capacitor/core";
 import { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import {Purchases, LOG_LEVEL} from "@revenuecat/purchases-capacitor";
+import { Purchases as NativePurchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor"; // used on iOS
+import { Purchases as WebPurchases } from "@revenuecat/purchases-js"; // used on web (note web SDK does not support LOG_LEVEL)
 import entitlements from "../entitlements.json";
 import { HomeButton } from "../plan-buttons";
 import { UserContext } from "../main";
@@ -144,9 +145,20 @@ function RefreshLink({children, setSubscriptionTier, setAllowedPlans, setAllowed
 // SET UP REVENUECAT FOR CURRENT AUTHENTICATED USER (will be executed on user sign-in, see Auth.jsx):
 export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
-    const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
+    // RevenueCat Purchases and LOG_LEVEL must come from separate packages (web vs native), which I imported under separate names.
+    // There is also a separate API key for web vs native.
+    let revenueCatApiKey = undefined
+    let Purchases = undefined;
+    if (Capacitor.getPlatform() !== 'web') {
+        revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
+        Purchases = NativePurchases;
+        await Purchases.setLogLevel({level: LOG_LEVEL.DEBUG}); // for more detailed error messages (not supported on web version)
+    }
+    else {
+        revenueCatApiKey = import.meta.env.VITE_REVENUECAT_WEB_API_KEY; // this is a sandbox API key, now suitable for use with real payments, but that's OK as I don't actually take payments on web (just query customer info)
+        Purchases = WebPurchases;
+    }
 
-    await Purchases.setLogLevel({level: LOG_LEVEL.DEBUG}); // for more detailed error messages
     await Purchases.configure({ 
         apiKey: revenueCatApiKey,
         appUserId: userId,
@@ -158,7 +170,16 @@ export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans
 
 async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
-    const customerInfo = await Purchases.getCustomerInfo(); // info for this user
+    // RevenueCat Purchases must come from separate packages (web vs native), which I imported under separate names:
+    let Purchases = undefined;
+    if (Capacitor.getPlatform() !== 'web') {
+        Purchases = NativePurchases;
+    }
+    else {    
+        Purchases = WebPurchases;
+    }
+
+    const customerInfo = await Purchases.getSharedInstance().getCustomerInfo(); // info for this user (Purchases having been configured previously on app initialisation)
     const rcEntitlements = customerInfo.entitlements.active; // active entitlements, as object keyed by entitlement "identifier" assigned in RevenueCat (which I have matched to the entitlementId in my entitlements.json).
     const entitlementKeys = Object.keys(rcEntitlements); // should be empty if no active entitlements, and have one element otherwise (as my app only has one entitlement at a time)
     let entitlementId = "PlanPin Starter";
@@ -172,7 +193,7 @@ async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowe
 
 function setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
-    entitlement = entitlements.filter(entitlement => (entitlement.id === entitlementId)); // from entitlements.json
+    const entitlement = entitlements.filter(entitlement => (entitlement.id === entitlementId)); // from entitlements.json
 
     setSubscriptionTier(entitlementId);
     setAllowedPlans(entitlement.plans);

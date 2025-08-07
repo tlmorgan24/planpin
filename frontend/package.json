@@ -19,6 +19,7 @@
     "@capacitor/preferences": "^7.0.1",
     "@capacitor/share": "^7.0.1",
     "@revenuecat/purchases-capacitor": "^11.1.0",
+    "@revenuecat/purchases-js": "^1.11.1",
     "@supabase/supabase-js": "^2.50.3",
     "jeep-sqlite": "^2.8.0",
     "pdfjs-dist": "^5.2.133",
