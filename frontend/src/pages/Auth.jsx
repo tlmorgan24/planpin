@@ -3,12 +3,13 @@ import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { DbContext, UserContext } from "../main";
 import { fullSync, wipeAll } from "../sync";
+import { initPurchases } from "./Pricing";
 import Modal from "react-modal";
 
 export default function Auth() {
 
     const {db, supabase} = useContext(DbContext); // we are confident db (if mobile) or supabase (if web) exist here, as App.jsx only sends user here if they exist (otherwise sends to loading screen)
-    const {setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
+    const {setUserId, setPdfFolder, setImageFolder, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
 
     const [modalIsOpen, setModalIsOpen] = useState(false);
     const [authType, setAuthType] = useState(null);
@@ -24,7 +25,7 @@ export default function Auth() {
     }
 
     async function continueAsGuest() {
-        setUpUser('log-in', {userId:'guest'}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
+        setUpUser('log-in', {userId:'guest'}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
     }
 
     return(
@@ -58,7 +59,7 @@ export default function Auth() {
 function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
 
     const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
-    const {setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
+    const {setUserId, setPdfFolder, setImageFolder, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
 
     // Initalise form inputs to empty string (not null), so React knows this is a controlled component (recommended for form inputs):
     const emptyFormValues = {email: '', password: '', company: ''}; // note, company is a relic from when I thought it would be good to know; no longer included in form
@@ -124,7 +125,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
         guarantee a signed-up user already exists in the local database
         */
 
-        setUpUser(authType, {userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase)
+        setUpUser(authType, {userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle)
 
         closeModal();
 
@@ -181,7 +182,7 @@ sets the values (apart from saveDir, which is a constant defined immediately in 
 Note authType input and getting company from object input are leftovers from when I thought it would be good 
 to collect company info. For now, I'm not going to collect this data.
 */
-export async function setUpUser(authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase) {
+export async function setUpUser(authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
     const platform = Capacitor.getPlatform();
     const { userId, email, company } = object;
@@ -215,6 +216,7 @@ export async function setUpUser(authType, object, setUserId, setPdfFolder, setIm
         if (error) console.error("Error: ", error);
     }
 
+    await initPurchases(userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); // configures RevenueCat Purchases object and updates subscription-related variables of UserContext
     setUserId(userId);
     setPdfFolder(pdfFolder);
     setImageFolder(imageFolder);

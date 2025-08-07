@@ -54,7 +54,7 @@ async function createUsersTable(db) {
             email TEXT,
             company TEXT,
             country TEXT,
-            subscription_tier TEXT NOT NULL DEFAULT 'free',
+            subscription_tier TEXT NOT NULL DEFAULT 'starter',
             billing_cycle_start TIMESTAMP,
             billing_cycle_end TIMESTAMP,
             reports_this_billing_cycle INTEGER NOT NULL DEFAULT 0,

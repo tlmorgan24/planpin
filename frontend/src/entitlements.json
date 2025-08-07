@@ -1,7 +1,8 @@
 [
     {
-        "id": "starter",
-        "name": "Starter",
+        "id": "PlanPin Starter",
+        "packageId": "Starter",
+        "productId": "app.planpin.planpin.starter.monthly",
         "poundsPerMonth": 0,
         "plans": 2,
         "items": 20,
@@ -10,8 +11,9 @@
         "extraFeatures": []
     },
     {
-        "id": "standard",
-        "name": "Standard",
+        "id": "PlanPin Standard",
+        "packageId": "Standard",
+        "productId": "app.planpin.planpin.standard.monthly",
         "poundsPerMonth": 9,
         "plans": 5,
         "items": 150,
@@ -20,8 +22,9 @@
         "extraFeatures": []
     },
     {
-        "id": "professional",
-        "name": "Professional",
+        "id": "PlanPin Professional",
+        "packageId": "Professional",
+        "productId": "app.planpin.planpin.pro.monthly",
         "poundsPerMonth": 29,
         "plans": 10,
         "items": 1000,

@@ -44,7 +44,7 @@ function AppProvider({children}) {
 export default function App() {
 
     const {db, supabase} = useContext(DbContext);
-    const {userId, setUserId, setPdfFolder, setImageFolder, saveDir} = useContext(UserContext);
+    const {userId, setUserId, setPdfFolder, setImageFolder, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
     const [checkedSession, setCheckedSession] = useState(false); // so that nothing will be rendered until we have checked for any previously saved session
 
     // Check for previously saved session:
@@ -54,7 +54,7 @@ export default function App() {
             const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
             if (error) console.error("Error: ", error);
             if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
-                await setUpUser('log-in', {userId: data.session.user.id}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase);
+                await setUpUser('log-in', {userId: data.session.user.id}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
                 // ^ as part of this, user ID will be set to saved defined value, so will bypass authentication screen
             }
             // Else, no previously saved session, so do nothing and leave userId as-is (undefined); will end up taking user to authentication screen
