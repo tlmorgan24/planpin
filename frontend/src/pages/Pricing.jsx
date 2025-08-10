@@ -151,54 +151,56 @@ export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans
 
     // RevenueCat Purchases and LOG_LEVEL must come from separate packages (web vs native), which I imported under separate names.
     // There is also a separate API key for web vs native.
-    let revenueCatApiKey = undefined
-    let Purchases = undefined;
+    // NOTE: web implementation may refuse to run due to violation of content security policy if using an adblocker. Seems to work properly without adblock on chrome.
     if (Capacitor.getPlatform() !== 'web') {
-        revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
-        Purchases = NativePurchases;
-        await Purchases.setLogLevel({level: LOG_LEVEL.DEBUG}); // for more detailed error messages (not supported on web version)
+        const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
+        await NativePurchases.setLogLevel({ level: LOG_LEVEL.DEBUG }); // for more detailed error messages (not supported on web version)
+        await NativePurchases.configure({ 
+            apiKey: revenueCatApiKey,
+            //appUserId: userId, // <-- DOES NOT WORK FOR CAPACITOR SDK, have to use .logIn() method below instead
+        });
+        await NativePurchases.logIn({ appUserID: userId });
     }
     else {
-        revenueCatApiKey = import.meta.env.VITE_REVENUECAT_WEB_API_KEY; // this is a sandbox API key, now suitable for use with real payments, but that's OK as I don't actually take payments on web (just query customer info)
-        Purchases = WebPurchases;
+        const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_WEB_API_KEY; // this is a sandbox API key, now suitable for use with real payments, but that's OK as I don't actually take payments on web (just query customer info)
+        await WebPurchases.configure({ 
+            apiKey: revenueCatApiKey,
+            appUserId: userId,
+        });
     }
 
-    await Purchases.configure({ 
-        apiKey: revenueCatApiKey,
-        appUserId: userId,
-    });
-
-    resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
+    await resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
 
 }
 
 async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
-    // RevenueCat Purchases must come from separate packages (web vs native), which I imported under separate names:
-    let Purchases = undefined;
-    if (Capacitor.getPlatform() !== 'web') {
-        Purchases = NativePurchases;
-    }
-    else {    
-        Purchases = WebPurchases;
-    }
+    toast.loading("Checking subscription details...", {id: 'loading'});
 
-    const customerInfo = await Purchases.getSharedInstance().getCustomerInfo(); // info for this user (Purchases having been configured previously on app initialisation)
+    // RevenueCat Purchases must come from separate packages (web vs native), which I imported under separate names (either way, assumed already configured at this point):
+    let customerInfo = undefined; // info for current user
+    if (Capacitor.getPlatform() !== 'web') { // on native mobile
+        customerInfo = await NativePurchases.getCustomerInfo();
+        customerInfo = customerInfo.customerInfo; // WEIRD QUIRK FOR CAPACITOR SDK but not web SDK: getCustomerInfo returns object with customerInfo property. THIS property has value equal to the actual customerInfo object
+    }
+    else { // on web
+        customerInfo = await WebPurchases.getSharedInstance().getCustomerInfo(); // web SDK uses getSharedInstance, whereas Capacitor SDK does not
+    }
+    
     const rcEntitlements = customerInfo.entitlements.active; // active entitlements, as object keyed by entitlement "identifier" assigned in RevenueCat (which I have matched to the entitlementId in my entitlements.json).
     const entitlementKeys = Object.keys(rcEntitlements); // should be empty if no active entitlements, and have one element otherwise (as my app only has one entitlement at a time)
-    let entitlementId = "PlanPin Starter";
+    let entitlementId = "PlanPin Starter"; // if user has purchased no subscription, no higher entitlement will be applied below, so they will remain on the free plan
     if (entitlementKeys.length > 0) {
         entitlementId = entitlementKeys[0]; // assuming user can only have one entitlement at a time (so array should have only one element)
     }
 
     setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
 
+    toast.success(`Subscription confirmed (${entitlementId})`, {id: 'loading'});
+
 }
 
 function setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
-
-    entitlementId = 'PlanPin Starter' // FOR TESTING PURPOSES ONLY - REMOVE THIS LINE WHEN DEPLOYING
-    console.log('SET TO STARTER PLAN FOR TESTING PURPOSES ONLY');
 
     const entitlement = entitlements.find(entitlement => (entitlement.id === entitlementId)); // from entitlements.json
 

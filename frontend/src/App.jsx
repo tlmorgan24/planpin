@@ -54,19 +54,13 @@ export default function App() {
             const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
             if (error) console.error("Error: ", error);
             if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
-                await setUpUser('log-in', {userId: data.session.user.id}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
-                // ^ as part of this, user ID will be set to saved defined value, so will bypass authentication screen
+                await setUpUser('log-in', {userId: data.session.user.id, email: data.session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); // not passing "setLoading", as loading screen already being handled here
             }
             // Else, no previously saved session, so do nothing and leave userId as-is (undefined); will end up taking user to authentication screen
             setCheckedSession(true);
         }
         func();
     }, [supabase])
-
-    // Make sure we wait for SQLite or Supabase database clients to initialise (both required for mobile app; only Supabase required for web):
-    if (!checkedSession || !supabase || (Capacitor.getPlatform() !== 'web' && !db)) {
-        return <Loading />;
-    }
     
     /* 
     Within Auth component, I will update state of userId (using setUserId) once user logs in.
@@ -77,35 +71,40 @@ export default function App() {
 
     return (
         <>
-            <AppProvider>
-                <BrowserRouter>
-                    <Routes>
-                        {/* if user not signed in or guest, Home and Plan pages are inaccessible, and Auth page is shown instead: */}
-                        {/* note "*" path means all paths NOT in route (i.e. all paths except contact, privacy-policy and pricing) will go to auth screen */}
+            {/* Show loading screen while waiting for SQLite or Supabase database clients to initialise (both required for mobile app; only Supabase required for web): */}
+            {(!checkedSession || !supabase || (Capacitor.getPlatform() !== 'web' && !db)) ?
+                <Loading message="Setting up..." />
+            : (
+                <AppProvider>
+                    <BrowserRouter>
+                        <Routes>
+                            {/* if user not signed in or guest, Home and Plan pages are inaccessible, and Auth page is shown instead: */}
+                            {/* note "*" path means all paths NOT in route (i.e. all paths except contact, privacy-policy and pricing) will go to auth screen */}
+                            {userId === undefined ? 
+                                <Route path="*" element={<Auth />} />
+                                : 
+                                <>
+                                    <Route path="/" element={<Home />} />
+                                    <Route path="/plan" element={<Plan />} />
+                                </>
+                            }
+                            {/* Contact, Privacy Policy and Pricing pages accessible regardless: */}
+                            <Route path="/contact" element={<Contact />} />
+                            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                            <Route path="/pricing" element={<Pricing />} />
+                        </Routes>
                         {userId === undefined ? 
-                            <Route path="*" element={<Auth />} />
-                            : 
+                            null
+                            :
                             <>
-                                <Route path="/" element={<Home />} />
-                                <Route path="/plan" element={<Plan />} />
+                                <SettingsModal />
+                                <CategoriesModal />
                             </>
                         }
-                        {/* Contact, Privacy Policy and Pricing pages accessible regardless: */}
-                        <Route path="/contact" element={<Contact />} />
-                        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                        <Route path="/pricing" element={<Pricing />} />
-                    </Routes>
-                    {userId === undefined ? 
-                        null
-                        :
-                        <>
-                            <SettingsModal />
-                            <CategoriesModal />
-                        </>
-                    }
-                </BrowserRouter>
-            </AppProvider>
-            <Toaster position="bottom-center" richColors /> {/* for easy pop-ups for loading, confirmation, etc */}
+                    </BrowserRouter>
+                </AppProvider>
+            )}
+            <Toaster position="bottom-center" richColors /> {/* for easy pop-ups for loading, confirmation, etc (same toaster for both loading screen and main app) */}
         </>
     );
 }

@@ -28,30 +28,11 @@ export function SyncButton() {
     const {db: sqliteDb, supabase} = useContext(DbContext);
     const {userId, pdfFolder, imageFolder, saveDir} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
+    
     const [modalIsOpen, setModalIsOpen] = useState(false);
 
     async function handleClick() {
-
-        if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined || (userId !== 'guest' && !supabase)) return;
-        setModalIsOpen(true);
-        toast.loading("Syncing...", {id: 'syncing'});
-        
-        try {
-
-            if (userId === 'guest') {
-                await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
-            }
-            else {
-                await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
-            }
-            toast.success('Sync complete!', {id: 'syncing'});
-            setModalIsOpen(false);
-            await refreshPdfObjects();
-
-        } catch {
-            toast.error('Something went wrong while syncing', {id: 'syncing'});
-        }
-
+        await syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen, refreshPdfObjects);
     }
 
     return(
@@ -70,6 +51,29 @@ export function SyncButton() {
 
 }
 
+export async function syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen=null, refreshPdfObjects=null) {
+
+    if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined || (userId !== 'guest' && !supabase)) return;
+    if (setModalIsOpen) setModalIsOpen(true);
+    toast.loading("Syncing (this may take a few minutes)...", {id: 'syncing'});
+    
+    try {
+
+        if (userId === 'guest') {
+            await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
+        }
+        else {
+            await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
+        }
+        if (setModalIsOpen) setModalIsOpen(false);
+        if (refreshPdfObjects) await refreshPdfObjects();
+        toast.success('Sync complete!', {id: 'syncing'});
+
+    } catch {
+        toast.error('Something went wrong while syncing', {id: 'syncing'});
+    }
+
+}
 
 async function localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir) {
     const {pdfFileNames, imageFileNames} = await cleanUpLocalDb(sqliteDb, userId);

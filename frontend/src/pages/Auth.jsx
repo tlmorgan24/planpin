@@ -2,16 +2,15 @@ import { useContext, useState } from "react";
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { DbContext, UserContext } from "../main";
-import { fullSync, wipeAll } from "../sync";
+import { syncAndRefresh, wipeAll } from "../sync";
 import { initPurchases } from "./Pricing";
+import Loading from "./Loading";
 import Modal from "react-modal";
 
 export default function Auth() {
 
-    const {db, supabase} = useContext(DbContext); // we are confident db (if mobile) or supabase (if web) exist here, as App.jsx only sends user here if they exist (otherwise sends to loading screen)
-    const {setUserId, setPdfFolder, setImageFolder, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
-
     const [modalIsOpen, setModalIsOpen] = useState(false);
+    const [loading, setLoading] = useState(false); // to show loading spinner when waiting for sync etc to complete on log-in
     const [authType, setAuthType] = useState(null);
 
     async function signUp() {
@@ -24,11 +23,15 @@ export default function Auth() {
         setModalIsOpen(true);
     }
 
+    // Note, I have removed "continue as guest" option for now. It would require something like this, with the relevant inputs taken from DbContext and UserContext:
+    /*
     async function continueAsGuest() {
-        setUpUser('log-in', {userId:'guest'}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
+        setUpUser(<inputs>);
     }
+    */
 
     return(
+        loading ? <Loading message="Setting up..." /> :
         <div className="auth-container">
             <h1>Welcome to PlanPin!</h1>
             <div className='big-buttons-container'>
@@ -49,14 +52,14 @@ export default function Auth() {
                 Got questions? <a href="/contact">Get in touch</a>.
             </p>
             <img className="bottom-logo" src="/logo-text-beside.svg" />
-            <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} /> {/* will only be shown when modalIsOpen set to true */}
+            <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} setLoading={setLoading} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
     );
 
 }
 
 
-function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
+function AuthModal({ authType, modalIsOpen, setModalIsOpen, setLoading }) {
 
     const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
     const {setUserId, setPdfFolder, setImageFolder, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
@@ -125,7 +128,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen }) {
         guarantee a signed-up user already exists in the local database
         */
 
-        setUpUser(authType, {userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle)
+        setUpUser(authType, {userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setLoading)
 
         closeModal();
 
@@ -182,12 +185,14 @@ sets the values (apart from saveDir, which is a constant defined immediately in 
 Note authType input and getting company from object input are leftovers from when I thought it would be good 
 to collect company info. For now, I'm not going to collect this data.
 */
-export async function setUpUser(authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
+export async function setUpUser(authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setLoading) {
     
     const platform = Capacitor.getPlatform();
     const { userId, email, company } = object;
     const pdfFolder = `${userId}/pdf`;
     const imageFolder = `${userId}/img`;
+
+    if (setLoading) setLoading(true); // show loading spinner while setting up user
 
     // If user doesn't exist (i.e. user id gives no primary key conflict), create record for it (either way, if on mobile, sync to make sure up to date with cloud):
     if (platform !== 'web') {
@@ -196,8 +201,6 @@ export async function setUpUser(authType, object, setUserId, setPdfFolder, setIm
             VALUES (?, ?, STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'), STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now'))
             ON CONFLICT(id) DO NOTHING
         `, [userId, email]);
-        fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir); // note, because we sync here, user's profile will IMMEDIATELY exist in the cloud if the profile has been created on mobile
-        console.log("WE MUST MAKE SURE FULL SYNC OCCURS HERE. IF NOT, IT COULD LEAD TO ISSUES.")
     }
     else {
         const {error} = await supabase
@@ -216,7 +219,15 @@ export async function setUpUser(authType, object, setUserId, setPdfFolder, setIm
         if (error) console.error("Error: ", error);
     }
 
+    if (platform !== 'web') {
+        await syncAndRefresh(db, supabase, userId, pdfFolder, imageFolder, saveDir, null, null); // not passing setModalIsOpen or refreshPdfObjects here, as we are not within Home context and refresh PDF objects should happen automatically once Home.jsx renders
+        console.log("WE MUST MAKE SURE FULL SYNC OCCURS HERE. IF NOT, IT COULD LEAD TO ISSUES.")
+    }
+
     await initPurchases(userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); // configures RevenueCat Purchases object and updates subscription-related variables of UserContext
+
+    if (setLoading) setLoading(false);
+
     setUserId(userId);
     setPdfFolder(pdfFolder);
     setImageFolder(imageFolder);
