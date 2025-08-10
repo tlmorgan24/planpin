@@ -3,11 +3,11 @@ import ConfirmModal from "../ConfirmModal";
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
-import { AppContext } from "../App";
 import { PageCanvas } from "../pdf-render";
 import { getPdfObjects, saveFile } from '../pdf-setup';
 import { DbContext, UserContext } from "../main";
 import { SyncButton, saveBlobToSupabase } from "../sync";
+import MenuBar from "../MenuBar";
 
 
 // -- CONTEXT VARIABLES --
@@ -78,37 +78,31 @@ function HomeProvider({children}) {
 // -- PAGE --
 
 export default function Home() {
-        
     return(
         <HomeProvider>
             <div className="home-container">
-                <div className="non-plans">
-                    <h1>My Plans</h1>
-                    {/* <RefreshPlansButton /> */}
-                    <SettingsButton />
-                </div>
+
+                <MenuBar />
+
+                <h1>My Plans</h1>
+                {/* <RefreshPlansButton /> */}
+                <PDFInput/>
                 <Plans/>
                 {/* 
                 Note the PDF input itself is treated like an existing PDF, appearing inside the Plans element.
                 We will apply common styling to it as other thumbnails, making it fit nicely in the layout so that
                 the input button, with its location/sizing, is showing you exactly where the added PDF will go.
                 */}
+
+                <p>
+                    <a href="/pricing">Subscription plans</a><br />
+                    <a href="/contact">Contact</a><br/>
+                    <a href="/privacy-policy">Privacy policy</a>
+                </p>
                 <img className="bottom-logo" src="/logo-text-beside.svg" />
+
             </div>
         </HomeProvider>
-    );
-}
-
-
-// ---- BUTTONS ----
-
-function SettingsButton() {
-    const {setSettingsOpen} = useContext(AppContext);
-    function handleClick() {
-        setSettingsOpen(true);
-    }
-    return(
-        <button type="button" onClick={handleClick}>Settings</button>
     );
 }
 
@@ -244,6 +238,7 @@ function PDFInput() {
 function Plans() {
 
     const {pdfObjects} = useContext(HomeContext);
+    const MAX_FILE_NAME_LENGTH = 15; // max number of characters of PDF filename to show in title (before trimming with "...")
     
     // Note refreshPdfObjects is called by HomeProvider (parent) as an effect with pdfFolder and saveDir deps.
     // As ExistingPlans tracks pdfObjects, plans will automatically be updated on mount and if those deps change.
@@ -251,15 +246,21 @@ function Plans() {
     
     return(
         <div className='thumbnails-container'>
-            <PDFInput/>
             {Object.entries(pdfObjects).map(([fileName, pdf]) => {
                 const href = `/plan?file=${encodeURIComponent(fileName)}`;
                 return (
-                    <div className='thumbnail' key={fileName} >
-                        <Link className='thumbnail-canvas' to={href} >
-                            <ThumbnailViewer pdf={pdf} />
+                    <div className='thumbnail-filename-group' key={fileName}>
+                        <div className='thumbnail' >
+                            <Link className='thumbnail-canvas' to={href} >
+                                <ThumbnailViewer pdf={pdf} />
+                            </Link>
+                            <PDFDeleteButton fileName={fileName} />
+                        </div>
+                        <Link to={href} style={{color: 'var(--inverse-primary-color', textDecoration: 'none'}} > {/* filename itself becomes clickable link also.  Link will be styled like "a" elements by default, so I have to manually set style here to same as regular text, as I don't want it styled much like a regular link */}
+                            <p>
+                                {fileName.slice(0, -4).length > MAX_FILE_NAME_LENGTH ? fileName.slice(0,MAX_FILE_NAME_LENGTH)+'...' : fileName.slice(0, -4)} {/* assumes .pdf extension */}
+                            </p>
                         </Link>
-                        <PDFDeleteButton fileName={fileName} />
                     </div>
                 );
             })}

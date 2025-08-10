@@ -1,4 +1,4 @@
-import { HomeButton } from '../plan-buttons';
+import { HomeButton } from "../MenuBar";
 
 export default function PrivacyPolicy() {
     return (

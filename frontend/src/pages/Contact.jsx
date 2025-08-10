@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { HomeButton } from '../plan-buttons';
+import { HomeButton } from '../MenuBar';
 
 export default function Contact() {
 

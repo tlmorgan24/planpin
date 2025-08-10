@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Purchases as NativePurchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor"; // used on iOS
 import { Purchases as WebPurchases } from "@revenuecat/purchases-js"; // used on web (note web SDK does not support LOG_LEVEL)
 import entitlements from "../entitlements.json";
-import { HomeButton } from "../plan-buttons";
+import { HomeButton } from "../MenuBar";
 import { UserContext } from "../main";
 
 export default function Pricing() {
@@ -21,7 +21,7 @@ export default function Pricing() {
             return;
         }
         if (entitlementId === subscriptionTier) {
-            toast.info(<>This plan is already selected. To cancel, <CancellationLink>click here</CancellationLink>.</>);
+            toast.info(<>This plan is already selected.{entitlementId === "PlanPin Starter" ? null : <> To cancel, <CancellationLink>click here</CancellationLink>.</>}</>);
             return;
         }
 
@@ -122,6 +122,7 @@ function CancellationLink({children}) {
     return (
         <a
         href="#"
+        style={{color: '#0973DC'}}
         onClick={(e) => {
             e.preventDefault();
             window.open("https://apps.apple.com/account/subscriptions", "_blank");

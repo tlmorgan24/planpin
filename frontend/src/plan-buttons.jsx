@@ -4,23 +4,10 @@ import { Share } from '@capacitor/share';
 import { Filesystem } from "@capacitor/filesystem";
 import { DbContext, UserContext } from "./main";
 import { PlanContext } from "./pages/Plan"; // to access context variables
-import { useNavigate } from "react-router-dom";
 import { saveFile } from "./pdf-setup";
 import { Capacitor } from "@capacitor/core";
 import { fullSync } from "./sync";
 
-
-// -- BACK TO HOME --
-
-export function HomeButton() {
-    const navigate = useNavigate()
-    function handleClick() {
-        navigate('/'); // Route to Home page as defined in App.jsx
-    }
-    return(
-        <button type="button" onClick={handleClick}>Home</button>
-    );
-}
 
 // -- GENERATE REPORT --
 

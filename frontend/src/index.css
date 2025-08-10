@@ -17,6 +17,7 @@
   /* Set usable width and height within body content, such that whole viewport is spanned with no scrolling required: */
   --usable-width: calc(100vw - 2 * var(--body-margin));
   --usable-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--body-margin));
+  --menu-bar-height: calc(40px + env(safe-area-inset-top));
 }
 
 /* 
@@ -29,7 +30,7 @@ If content-box (default) was used instead of border-box, then padding etc. would
 
 .safe-area-container {
   position: relative; /* to allow children to use % units, e.g. width: 100% */
-  padding-top: calc(env(safe-area-inset-top) + var(--body-margin));
+  padding-top: calc(env(safe-area-inset-top) + var(--body-margin) + var(--menu-bar-height)); /* would just be calc(env(safe-area-inset-top) + var(--body-margin));, but we are adding extra to account for menu bar at top (which has fixed position, so will not automatically push content down) */
   padding-bottom: calc(env(safe-area-inset-bottom) + var(--body-margin));
   padding-left: var(--body-margin);
   padding-right: var(--body-margin);
@@ -41,10 +42,26 @@ If content-box (default) was used instead of border-box, then padding etc. would
 
 html, body {
   padding: 0;
-  margin: 0; /* note, our intended "body margin" is applied to safe-area-container instead of body itself */
+  margin: 0; /* note, our intended "body margin" is applied as padding to safe-area-container instead of margin to body itself */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   background-color: var(--primary-color);
   color: var(--inverse-primary-color);
+}
+
+.menu-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--menu-bar-height); /* should be enough to contain the menu bar content */
+  padding: 6px;
+  padding-top: calc(6px + env(safe-area-inset-top));
+  background-color: var(--inverse-accent-color);
+  z-index: 500; /* always on top of non-modal content (modals have z-index 1000+ at time of writing) */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
 }
 
 a {
@@ -57,17 +74,27 @@ a {
   position: relative; /* set to relative to allow it to be a containing block for children */
   overflow-y: auto;
   width: 100%;
-  height: 100%;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
+.plan-container {
+  height: 100%; /* on the plan page (with PDF viewer), we want PDF to ultimately take up area of screen with no scroll (scrolling will be done through panning of the PDF, not scrolling content itself) */
+}
+
 .privacy-policy {
   text-align: left;
   max-width: 800px;
 }
+
+.bottom-logo {
+  margin-bottom: 6px;
+}
+
+
+/* Pricing page: */
 
 .cards-container {
   position: relative;
@@ -172,15 +199,21 @@ markerLayer fill entirety of pageCanvas.
   justify-content: center;
 }
 
-.thumbnail, .pdf-input-container { /* we will style the PDF file input to look similar to other thumbnails of existing PDFs (e.g. same size) */
+.thumbnail-filename-group {
   position: relative;
   overflow: hidden;
   min-width: 100px;
   max-width: 250px;
-  aspect-ratio: 1 / 1; /* always square */
-  border-radius: 10px;
   /* If possible within min/max width, aim for 2 items per line, but no flex-grow, as otherwise a lone thumbnail on its row will grow bigger than the other thumbnails: */
   flex: 0 1 calc(49% - var(--thumbnail-gap)); 
+}
+
+.thumbnail {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1 / 1; /* always square */
+  border-radius: 10px;
 }
 
 .pdf-input-container {
@@ -217,6 +250,7 @@ markerLayer fill entirety of pageCanvas.
   text-align: center;
   background-color: var(--primary-color);
   border-radius: 10px;
+  z-index: 1000; /* on top of all non-modal content (including menu bar). NOTE, THIS DOESN'T APPLY NICELY ON REACT MODALS, AS YOU HAVE TO APPLY EXPLICITLY TO BOTH OVERLAY AND CONTENT. So, I do this directly in the <Modal> tag of each modal I create */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -378,7 +412,7 @@ button:hover, .button-like:hover {
 .big-buttons-container button, .big-buttons-container .button-like {
   position: relative;
   width: 200px;
-  max-width: 100%;
+  max-width: min(100%, 300px);
   padding-top: 10px;
   padding-bottom: 10px;
   padding-left: 15px;

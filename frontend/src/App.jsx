@@ -9,6 +9,7 @@ import Plan from './pages/Plan';
 import Auth from './pages/Auth';
 import Loading from './pages/Loading';
 import Contact from './pages/Contact';
+import Help from './pages/Help';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Pricing from './pages/Pricing';
 import SettingsModal from './SettingsModal';
@@ -51,6 +52,11 @@ export default function App() {
     useEffect(() => {
         async function func() {
             if (!supabase) return;
+            if (userId) {
+                setCheckedSession(true);
+                return;
+                // ^ marking session as "checked" and returning if userId already defined prevents setUpUser running every time user e.g. goes from Home screen to Contact screen
+            }
             const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
             if (error) console.error("Error: ", error);
             if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
@@ -88,7 +94,8 @@ export default function App() {
                                     <Route path="/plan" element={<Plan />} />
                                 </>
                             }
-                            {/* Contact, Privacy Policy and Pricing pages accessible regardless: */}
+                            {/* Help, Contact, Privacy Policy and Pricing pages accessible regardless: */}
+                            <Route path="/help" element={<Help />} />
                             <Route path="/contact" element={<Contact />} />
                             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                             <Route path="/pricing" element={<Pricing />} />

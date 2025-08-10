@@ -47,9 +47,11 @@ export default function Auth() {
                 */}
             </div>
             <p>
-                Sign up for free. See available <a href="/pricing">subscription plans</a>.<br/>
-                See the <a href="/privacy-policy">privacy policy</a>.<br/>
-                Got questions? <a href="/contact">Get in touch</a>.
+                It's free to sign up!<br/>
+                <a href="/help">How to use PlanPin</a><br/>
+                <a href="/pricing">Subscription plans</a><br/>
+                <a href="/privacy-policy">Privacy policy</a><br/>
+                <a href="/contact">Get in touch</a>
             </p>
             <img className="bottom-logo" src="/logo-text-beside.svg" />
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} setLoading={setLoading} /> {/* will only be shown when modalIsOpen set to true */}
@@ -140,7 +142,16 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen, setLoading }) {
     };
 
     return(
-        <Modal className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={modalIsOpen} onRequestClose={closeModal}>
+        <Modal 
+            className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} 
+            closeTimeoutMS={300} 
+            isOpen={modalIsOpen} 
+            onRequestClose={closeModal}
+            style={{
+                overlay: { zIndex: 1000 },
+                content: { zIndex: 1001 }
+            }}
+        >
             
             <form onSubmit={handleSubmit}>
 

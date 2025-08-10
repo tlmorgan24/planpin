@@ -1,12 +1,13 @@
 import { createContext, useState, useRef, useContext, useEffect } from "react";
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
-import { HomeButton, GenerateReportButton, NextPageButton, PreviousPageButton, ResetViewButton} from "../plan-buttons";
+import { GenerateReportButton, NextPageButton, PreviousPageButton, ResetViewButton} from "../plan-buttons";
 import { InteractivePage } from "../pdf-render";
 import { MarkerLayer } from "../markers";
 import { readPdf, readPdfFromSupabase, loadPdf } from "../pdf-setup";
 import { DbContext, UserContext } from "../main";
 import { AppContext } from "../App";
+import MenuBar from "../MenuBar";
 
 
 // -- CONTEXT VARIABLES --
@@ -176,12 +177,15 @@ function PlanProvider({children}) {
 
 export default function Plan() {
 
-    // Get pdf file:
+    const MAX_FILE_NAME_LENGTH = 15; // max number of characters of PDF filename to show in title (before trimming with "...")
     const {pdfFolder, saveDir} = useContext(UserContext);
     const {supabase} = useContext(DbContext);
+
+    // Get pdf file:
     const location = useLocation();
     const params = new URLSearchParams(location.search);
     const fileName = params.get('file');
+    const bareFileName = fileName.toLowerCase().endsWith('.pdf') ? fileName.slice(0, -4) : fileName; // remove .pdf extension
     // readPdf and loadPdf are async functions, so have to put inside useEffect:
     const [pdf, setPDF] = useState(null);
     useEffect(() => {
@@ -208,15 +212,18 @@ export default function Plan() {
         <PlanProvider>
             <div className="plan-container">
 
-                <HomeButton />
-                <GenerateReportButton />
+                <MenuBar />
         
                 {/* PDF viewer */}
 
-                <h1>PDF Plan</h1>
-
-                <ResetViewButton/>
-                <br/>
+                <h1>
+                    {bareFileName.length > MAX_FILE_NAME_LENGTH ? bareFileName.slice(0,MAX_FILE_NAME_LENGTH)+'...' : bareFileName}
+                </h1>
+                <div className="big-buttons-container">
+                    <GenerateReportButton />
+                    <ResetViewButton/>
+                </div>
+                <div style={{marginBottom: '1rem'}}></div> {/* quick fix to leave appropriate gap between buttons and PDF viewer */}
 
                 <PDFViewer pdf={pdf} />
                 <PreviousPageButton />

@@ -35,21 +35,26 @@ export default function SettingsModal() {
     }
 
     return (
-        <Modal className={{base: 'side-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={settingsOpen} onRequestClose={closeSettings}>
+        <Modal 
+            className={{base: 'side-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} 
+            closeTimeoutMS={300} 
+            isOpen={settingsOpen} 
+            onRequestClose={closeSettings}
+            style={{
+                overlay: { zIndex: 1000 },
+                content: { zIndex: 1001 }
+            }}
+        >
             <div className="big-buttons-container">
                 <button type="button" onClick={logOutUser}>Log out</button>
                 <button type="button" onClick={closeSettings}>Close</button>
                 <button type="button" className="bad" onClick={onRequestDelete}>Delete account</button>
             </div>
+
             <p>
                 <a href="/pricing">Subscription plans</a><br />
                 <a href="/contact">Contact</a><br/>
                 <a href="/privacy-policy">Privacy policy</a>
-            </p>
-
-            <p>
-                Example PDF plan used with thanks to <a href="https://commons.wikimedia.org/wiki/File:LEVEL_11_FLOOR_PLAN.pdf">Vivianwwj</a>
-                , <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>, via Wikimedia Commons.
             </p>
 
             <img className="bottom-logo" src="/logo-text-beside.svg" />
@@ -59,6 +64,7 @@ export default function SettingsModal() {
             If user THEN clicks confirm on the confirmation modal, we proceed to delete the account.
             */}
             <ConfirmModal message={confirmationMessage} isOpen={showConfirm} onConfirm={deleteUserAccount} onCancel={onCancelDelete}/>
+        
         </Modal>
     );
 }
