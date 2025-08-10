@@ -96,9 +96,9 @@ function DbProvider({children}) {
 
 export const SafeAreaContainer = ({ children }) => (
     <div className="safe-area-container">
-      {children}
+        {children}
     </div>
-  );
+);
 
 // -- APP --
 Modal.setAppElement('#root'); // so any modals in the app can properly hide non-modal part of app from screen readers when modal open

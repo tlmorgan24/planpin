@@ -25,7 +25,7 @@ function HomeProvider({children}) {
 
     async function refreshPdfObjects() {
 
-        toast.loading("Loading...", { id: 'loading' }); // specify id, so if already have loading toast (with same id), won't create a new one
+        // note, we do not provide a toast to show refresh is occuring/successful, as user only triggers refresh through sync button, which has its own loading/success toast.
 
         if ( userId === undefined || pdfFolder === undefined) return; // only attempt to fetch PDFs if folder is defined (may not be defined on initial render)
 
@@ -57,8 +57,6 @@ function HomeProvider({children}) {
         const pdfObjects = await getPdfObjects(pdfFolder, saveDir, fileNamesFilter, supabase); // applying fileNamesFilter means we won't retrieve pdfObjects for files the user has already (soft) deleted
         setPdfObjects(pdfObjects);
         
-        toast.success("Plans refreshed", { id: 'loading' }); // must match ID of loading toast, to remove that loading toast
-
     };
 
     // Ensure children, which track pdfObjects, re-run with refreshed pdfObjects on mount and on change of pdfFolder/saveDir:
@@ -103,13 +101,6 @@ export default function Home() {
 
 
 // ---- BUTTONS ----
-
-function RefreshPlansButton() {
-    const {refreshPdfObjects} = useContext(HomeContext);
-    return(
-        <button type="button" onClick={refreshPdfObjects}>Refresh plans</button>
-    );
-}
 
 function SettingsButton() {
     const {setSettingsOpen} = useContext(AppContext);

@@ -14,6 +14,12 @@ PODS:
     - Capacitor
   - CapacitorShare (7.0.1):
     - Capacitor
+  - PurchasesHybridCommon (16.1.0):
+    - RevenueCat (= 5.33.1)
+  - RevenueCat (5.33.1)
+  - RevenuecatPurchasesCapacitor (11.1.0):
+    - Capacitor
+    - PurchasesHybridCommon (= 16.1.0)
   - SQLCipher (4.9.0):
     - SQLCipher/standard (= 4.9.0)
   - SQLCipher/common (4.9.0)
@@ -29,9 +35,12 @@ DEPENDENCIES:
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
   - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
   - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
+  - "RevenuecatPurchasesCapacitor (from `../../node_modules/@revenuecat/purchases-capacitor`)"
 
 SPEC REPOS:
   trunk:
+    - PurchasesHybridCommon
+    - RevenueCat
     - SQLCipher
     - ZIPFoundation
 
@@ -50,6 +59,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/preferences"
   CapacitorShare:
     :path: "../../node_modules/@capacitor/share"
+  RevenuecatPurchasesCapacitor:
+    :path: "../../node_modules/@revenuecat/purchases-capacitor"
 
 SPEC CHECKSUMS:
   Capacitor: 03bc7cbdde6a629a8b910a9d7d78c3cc7ed09ea7
@@ -59,9 +70,12 @@ SPEC CHECKSUMS:
   CapacitorFilesystem: e6261c410436f54908c11f94336c5b58286b1db0
   CapacitorPreferences: 6c98117d4d7508034a4af9db64d6b26fc75d7b94
   CapacitorShare: e573823f511f260f598d0423c33b1e3d7bbe5fd1
+  PurchasesHybridCommon: acbd336f8248da5599893ecf9ac32c561a2fd446
+  RevenueCat: b0ed01125b05a45b8264a2951ad68acb61942038
+  RevenuecatPurchasesCapacitor: 554b5d4711cac8df01feed6333b075296b5d9082
   SQLCipher: 31878d8ebd27e5c96db0b7cb695c96e9f8ad77da
   ZIPFoundation: b8c29ea7ae353b309bc810586181fd073cb3312c
 
-PODFILE CHECKSUM: 9129043162bab29d209d49cca2b4295a7964c9da
+PODFILE CHECKSUM: 5a7849b4684455cbb7e13af12fe0fe346b40bc41
 
 COCOAPODS: 1.16.2

@@ -105,9 +105,13 @@ export default function Pricing() {
             
             </div>
 
-            <p>
-                Recent change not showing? <RefreshLink>Click here</RefreshLink> to refresh.
-            </p>
+            {userId ? 
+                <p>
+                    Recent change not showing? <RefreshLink setSubscriptionTier={setSubscriptionTier} setAllowedPlans={setAllowedPlans} setAllowedMarkers={setAllowedMarkers} setAllowedImages={setAllowedImages} setAllowedReportsThisBillingCycle={setAllowedReportsThisBillingCycle}>Click here</RefreshLink> to refresh.
+                </p>
+                :
+                null
+            }
         
         </div>
     );
@@ -193,7 +197,10 @@ async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowe
 
 function setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
-    const entitlement = entitlements.filter(entitlement => (entitlement.id === entitlementId)); // from entitlements.json
+    entitlementId = 'PlanPin Starter' // FOR TESTING PURPOSES ONLY - REMOVE THIS LINE WHEN DEPLOYING
+    console.log('SET TO STARTER PLAN FOR TESTING PURPOSES ONLY');
+
+    const entitlement = entitlements.find(entitlement => (entitlement.id === entitlementId)); // from entitlements.json
 
     setSubscriptionTier(entitlementId);
     setAllowedPlans(entitlement.plans);

@@ -19,10 +19,12 @@ export default function SettingsModal() {
     }
     async function logOutUser() {
         await logOut(supabase, setUserId);
+        setSettingsOpen(false);
     }
     async function deleteUserAccount() {
         setShowConfirm(false);
         await deleteAccount(supabase, db, userId, setUserId, saveDir);
+        setSettingsOpen(false);
     }
 
     function onRequestDelete() {

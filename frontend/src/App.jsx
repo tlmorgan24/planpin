@@ -63,17 +63,11 @@ export default function App() {
         func();
     }, [supabase])
 
-    let content = <Loading />;
-
     // Make sure we wait for SQLite or Supabase database clients to initialise (both required for mobile app; only Supabase required for web):
     if (!checkedSession || !supabase || (Capacitor.getPlatform() !== 'web' && !db)) {
         return <Loading />;
     }
-        if (userId === undefined) { // user has neither signed in, nor chosen to continue as guest yet. We have already checked to see if there is previously saved session (there isn't one), so take user to login screen.
-            content = (
-                <Auth />
-            );
-        }
+    
     /* 
     Within Auth component, I will update state of userId (using setUserId) once user logs in.
     If user chooses to continue as guest, will set userId to "guest". I will also add record of user to "users" 

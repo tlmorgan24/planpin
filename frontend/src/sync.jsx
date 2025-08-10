@@ -63,7 +63,7 @@ export function SyncButton() {
                 Sync
             </button>
             <Modal className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={modalIsOpen} >
-                <Loading message="Please wait..." />
+                <Loading message="Please wait while syncing is carried out..." />
             </Modal>
         </>
     );
@@ -321,7 +321,7 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
     });
 
     // Execute above batched statements:
-    sqliteDb.executeSet(statements);
+    await sqliteDb.executeSet(statements);
 
     BUT for 'plans' and 'images' tables, we also need to track which rows were actually updated, 
     so we can retrieve only those files from the cloud. So, we have to do a SELECT to query the rows to be updated first.
@@ -376,7 +376,7 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
                 };
             });
         
-            sqliteDb.executeSet(statements);
+            await sqliteDb.executeSet(statements);
 
         }
 
@@ -420,7 +420,7 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
             });
 
             // Execute above batched statements:
-            sqliteDb.executeSet(statements);
+            await sqliteDb.executeSet(statements);
 
         }
 

@@ -183,7 +183,7 @@ Note authType input and getting company from object input are leftovers from whe
 to collect company info. For now, I'm not going to collect this data.
 */
 export async function setUpUser(authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
-
+    
     const platform = Capacitor.getPlatform();
     const { userId, email, company } = object;
     const pdfFolder = `${userId}/pdf`;
