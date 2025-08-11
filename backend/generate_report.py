@@ -157,7 +157,7 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
                 paragraph = create_merged_paragraph(table, row_index+1, style='Caption')
                 run = paragraph.add_run("This is a caption")
 
-        doc.add_paragraph("\u00A0") # blank line after each paragraph (uses non-breaking space to be sure won't be treated as empty and tables merged)
+        doc.add_paragraph("Will this work?", style="Normal") # blank line after each paragraph (uses non-breaking space to be sure won't be treated as empty and tables merged)
 
     return doc
 
