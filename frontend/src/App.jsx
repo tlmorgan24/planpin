@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect, createContext } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Toaster } from 'sonner';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { UserContext, DbContext } from './main';
 import { setUpUser } from './pages/Auth';
 import Home from './pages/Home';
@@ -83,6 +83,7 @@ export default function App() {
             : (
                 <AppProvider>
                     <BrowserRouter>
+                        <ScrollToTop /> {/* scroll reset on route change */}
                         <Routes>
                             {/* if user not signed in or guest, Home and Plan pages are inaccessible, and Auth page is shown instead: */}
                             {/* note "*" path means all paths NOT in route (i.e. all paths except contact, privacy-policy and pricing) will go to auth screen */}
@@ -114,4 +115,14 @@ export default function App() {
             <Toaster position="bottom-center" richColors /> {/* for easy pop-ups for loading, confirmation, etc (same toaster for both loading screen and main app) */}
         </>
     );
+}
+
+function ScrollToTop() {
+    const { pathname } = useLocation();
+    // On change of pathname (i.e. navigating to different page):
+    useEffect(() => {
+        window.scrollTo(0, 0); // scroll to top of window
+        // note, there is no way to reset zoom (without full refresh) if user has manually zoomed in on browser, but at least this won't be an issue on mobile app, as user can't zoom
+    }, [pathname]);
+    return null;
 }

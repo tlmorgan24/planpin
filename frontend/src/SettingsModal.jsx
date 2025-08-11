@@ -1,5 +1,6 @@
 import Modal from 'react-modal';
 import { useContext, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { UserContext, DbContext } from './main';
 import { AppContext } from './App';
 import { logOut, deleteAccount } from "./pages/Auth";
@@ -52,9 +53,10 @@ export default function SettingsModal() {
             </div>
 
             <p>
-                <a href="/pricing">Subscription plans</a><br />
-                <a href="/contact">Contact</a><br/>
-                <a href="/privacy-policy">Privacy policy</a>
+                {/* note we use <Link> instead of <a> to preserve state and prevent full app reload: */}
+                <Link to="/pricing" onClick={() => setSettingsOpen(false)}>Subscription plans</Link><br />
+                <Link to="/contact" onClick={() => setSettingsOpen(false)}>Contact</Link><br/>
+                <Link to="/privacy-policy" onClick={() => setSettingsOpen(false)}>Privacy policy</Link>
             </p>
 
             <img className="bottom-logo" src="/logo-text-beside.svg" />

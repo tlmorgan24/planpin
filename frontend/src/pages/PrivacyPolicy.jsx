@@ -1,10 +1,11 @@
-import { HomeButton } from "../MenuBar";
+import { Link } from "react-router-dom";
+import MenuBar from "../MenuBar";
 
 export default function PrivacyPolicy() {
     return (
         <div className="privacy-policy-container">
             <div className="big-buttons-container">
-                <HomeButton />
+                <MenuBar />
             </div>
             <h1>Privacy policy</h1>
 
@@ -58,7 +59,7 @@ export default function PrivacyPolicy() {
 
             </div>
 
-            <a href="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></a>
+            <Link to="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></Link>
         </div>
     );
 }

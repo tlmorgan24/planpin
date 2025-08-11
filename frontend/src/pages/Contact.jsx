@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { HomeButton } from '../MenuBar';
+import MenuBar from "../MenuBar";
 
 export default function Contact() {
 
@@ -63,6 +64,8 @@ export default function Contact() {
     return (
         <div className="contact-container">
 
+            <MenuBar />
+
             <form onSubmit={handleSubmit}>
 
                 <h1>Send a message</h1>
@@ -88,13 +91,14 @@ export default function Contact() {
                 <p>Alternatively, send an email to <a href="mailto:contact@planpin.app">contact@planpin.app</a>.</p>
 
                 <div className="big-buttons-container">
-                    <HomeButton />
                     <button type="submit" className="accented">Submit</button>
                 </div>
 
             </form>
 
-            <a href="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></a>
+            <div style={{marginBottom: '1rem'}}></div> {/* quick fix to leave appropriate gap above bottom logo */}
+
+            <Link to="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></Link>
 
         </div>
     );

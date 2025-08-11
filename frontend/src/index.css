@@ -17,7 +17,8 @@
   /* Set usable width and height within body content, such that whole viewport is spanned with no scrolling required: */
   --usable-width: calc(100vw - 2 * var(--body-margin));
   --usable-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--body-margin));
-  --menu-bar-height: calc(40px + env(safe-area-inset-top));
+  --menu-bar-padding: 6px;
+  --menu-bar-height: calc(1.2rem + 2 * var(--menu-bar-padding) + env(safe-area-inset-top));
 }
 
 /* 
@@ -30,7 +31,7 @@ If content-box (default) was used instead of border-box, then padding etc. would
 
 .safe-area-container {
   position: relative; /* to allow children to use % units, e.g. width: 100% */
-  padding-top: calc(env(safe-area-inset-top) + var(--body-margin) + var(--menu-bar-height)); /* would just be calc(env(safe-area-inset-top) + var(--body-margin));, but we are adding extra to account for menu bar at top (which has fixed position, so will not automatically push content down) */
+  padding-top: calc(env(safe-area-inset-top) + var(--body-margin)); /* note, we will effectively increase this to allow for menu bar height, but adding a top-margin to top-level page containers (to those pages which have the menu bar) */
   padding-bottom: calc(env(safe-area-inset-bottom) + var(--body-margin));
   padding-left: var(--body-margin);
   padding-right: var(--body-margin);
@@ -54,30 +55,44 @@ html, body {
   left: 0;
   right: 0;
   height: var(--menu-bar-height); /* should be enough to contain the menu bar content */
-  padding: 6px;
-  padding-top: calc(6px + env(safe-area-inset-top));
-  background-color: var(--inverse-accent-color);
+  padding: var(--menu-bar-padding);
+  padding-top: calc(var(--menu-bar-padding) + env(safe-area-inset-top));
+  background-color: var(--mid-primary-color);
   z-index: 500; /* always on top of non-modal content (modals have z-index 1000+ at time of writing) */
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
+  gap: 20px;
 }
 
 a {
   color: var(--mid-primary-color);
 }
 
+.menu-bar a {
+  color: var(--primary-color);
+  text-decoration: none; /* remove underline */
+}
+
+.menu-bar a:hover {
+  text-decoration: underline; /* bring back underline on hover */
+}
+
 /* Top-level containers: */
 
-.home-container, .plan-container, .auth-container, .contact-container, .privacy-policy-container, .loading-container, .pricing-container {
+.home-container, .plan-container, .auth-container, .contact-container, .privacy-policy-container, .loading-container, .pricing-container, .help-container {
   position: relative; /* set to relative to allow it to be a containing block for children */
   overflow-y: auto;
+  margin-top: calc(var(--menu-bar-height) - env(safe-area-inset-top)); /* push content down to avoid menu bar (we take away safe area inset, as this is already accounted for in --menu-bar-height */
   width: 100%;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.auth-container {
+  margin-top: 0; /* Auth page has no menu bar, so should not get extra margin */
 }
 
 .plan-container {
@@ -100,7 +115,6 @@ a {
   position: relative;
   overflow-y: auto;
   width: 100%;
-  height: 100%;
   text-align: center;
   display: flex;
   flex-wrap: wrap;
@@ -397,8 +411,9 @@ button:hover, .button-like:hover {
 .big-buttons-container {
   position: relative;
   margin: 0 auto; /* 0 vertical margin; horizontal margin evenly split to centre the element */
-  width: 600px;
-  max-width: 100%;
+  /* note, if width and max-width are reversed, does not work on Home page: */
+  width: 100%;
+  max-width: 600px;
   text-align: center; /* will be inherited by children */
   display: flex;
   flex-direction: row;

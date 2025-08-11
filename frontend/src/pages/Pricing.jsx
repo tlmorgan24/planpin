@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Purchases as NativePurchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor"; // used on iOS
 import { Purchases as WebPurchases } from "@revenuecat/purchases-js"; // used on web (note web SDK does not support LOG_LEVEL)
 import entitlements from "../entitlements.json";
-import { HomeButton } from "../MenuBar";
+import MenuBar from "../MenuBar";
 import { UserContext } from "../main";
 
 export default function Pricing() {
@@ -61,7 +61,7 @@ export default function Pricing() {
     return (
         <div className="pricing-container">
 
-            <HomeButton />
+            <MenuBar />
             
             <h1>Choose Your Plan</h1>
 
@@ -74,7 +74,9 @@ export default function Pricing() {
                     style={entitlement.id === subscriptionTier ? {borderWidth: '5px'} : {} /* properties left as defaults defined in index.css if not current plan */}
                 >
                     <h2>{entitlement.packageId}</h2>
-                    <h3>{entitlement.poundsPerMonth ? `£${entitlement.poundsPerMonth}/month` : "Free"}</h3>
+                    <h3 style={{margin: '0'}}>
+                        {entitlement.poundsPerMonth ? `£${entitlement.poundsPerMonth}/month` : "Free"}
+                    </h3>
                     <ul className="features">
                         <p>Across unlimited devices:</p>
                         <li>Store up to <strong>{entitlement.plans} plan{entitlement.plans !== 1 ? "s" : ""}</strong></li>
@@ -95,7 +97,7 @@ export default function Pricing() {
                             </button>
                         </div>
                     :
-                        <p>
+                        <p style={{fontWeight: 'bold'}}>
                             Manage subscriptions through the PlanPin iOS app
                         </p>
                     }
@@ -110,7 +112,7 @@ export default function Pricing() {
                     Recent change not showing? <RefreshLink setSubscriptionTier={setSubscriptionTier} setAllowedPlans={setAllowedPlans} setAllowedMarkers={setAllowedMarkers} setAllowedImages={setAllowedImages} setAllowedReportsThisBillingCycle={setAllowedReportsThisBillingCycle}>Click here</RefreshLink> to refresh.
                 </p>
                 :
-                null
+                <div style={{marginTop: '1rem'}}></div> // hack to leave enough space
             }
         
         </div>
@@ -124,7 +126,7 @@ function CancellationLink({children}) {
         href="#"
         style={{color: '#0973DC'}}
         onClick={(e) => {
-            e.preventDefault();
+            e.preventDefault(); // prevent default behaviour (would navigate to "#", meaning top of page)
             window.open("https://apps.apple.com/account/subscriptions", "_blank");
         }}
         >
@@ -138,7 +140,7 @@ function RefreshLink({children, setSubscriptionTier, setAllowedPlans, setAllowed
         <a
         href="#"
         onClick={(e) => {
-            e.preventDefault();
+            e.preventDefault(); // prevent default behaviour (would navigate to "#", meaning top of page)
             resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle)
         }}
         >

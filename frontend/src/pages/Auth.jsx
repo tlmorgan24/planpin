@@ -47,7 +47,9 @@ export default function Auth() {
                 */}
             </div>
             <p>
-                It's free to sign up!<br/>
+                Signing up is free!
+            </p>
+            <p>
                 <a href="/help">How to use PlanPin</a><br/>
                 <a href="/pricing">Subscription plans</a><br/>
                 <a href="/privacy-policy">Privacy policy</a><br/>

@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from 'react-router-dom';
 import { AppContext } from "./App";
 import { UserContext } from "./main";
 
@@ -14,32 +14,28 @@ export default function MenuBar() {
     );
 }
 
+// I am making these "buttons" <Link> elements so they are styled as <a> elements (hyperlinks).
+// Note we should use <Link> instead of <a> to preserve state and prevent full app reload
+
 function HelpButton() {
-    const navigate = useNavigate()
-    function handleClick() {
-        navigate('/help'); // Route to Help page as defined in App.jsx
-    }
     return(
-        <button type="button" onClick={handleClick}>Help</button>
+        <Link to='/help'>Help</Link>
     );
 }
 
 export function HomeButton() {
-    const navigate = useNavigate()
-    function handleClick() {
-        navigate('/'); // Route to Home page as defined in App.jsx (will route to Auth page is userId not defined, as "/" will not be found as a route and will default to "*", which is assigned to Auth)
-    }
     return(
-        <button type="button" onClick={handleClick}>Home</button>
+        <Link to='/'>Home</Link>
     );
 }
 
 function SettingsButton() {
     const {setSettingsOpen} = useContext(AppContext);
-    function handleClick() {
+    function handleClick(e) {
+        e.preventDefault(); // prevent default behaviour (would navigate to "#", meaning top of page)
         setSettingsOpen(true);
     }
     return(
-        <button type="button" onClick={handleClick}>Settings</button>
+        <a href="#" onClick={handleClick}>Settings</a>
     );
 }

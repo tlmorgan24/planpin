@@ -95,9 +95,10 @@ export default function Home() {
                 */}
 
                 <p>
-                    <a href="/pricing">Subscription plans</a><br />
-                    <a href="/contact">Contact</a><br/>
-                    <a href="/privacy-policy">Privacy policy</a>
+                    {/* note we use <Link> instead of <a> to preserve state and prevent full app reload: */}
+                    <Link to="/pricing">Subscription plans</Link><br />
+                    <Link to="/contact">Contact</Link><br/>
+                    <Link to="/privacy-policy">Privacy policy</Link>
                 </p>
                 <img className="bottom-logo" src="/logo-text-beside.svg" />
 
@@ -215,13 +216,13 @@ function PDFInput() {
             selecting a file), we will directly monitor the file input for changes, and submit immediately on file selection.
             */}
             <div className="big-buttons-container">
+                {Capacitor.getPlatform() !== 'web' ? <SyncButton /> : null} {/* only show sync button on mobile app */}
                 <label className="button-like" htmlFor="file-input">
                     {/* I am commenting out this icon, as doesn't fit on mobile: 
                     <img className="padded-icon" src="/clipboard-arrow.svg" />
                     */}
                     Upload PDF
                 </label>
-                {Capacitor.getPlatform() !== 'web' ? <SyncButton /> : null} {/* only show sync button on mobile app */}
             </div>
             <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/> {/* must be outside big-buttons-container so buttons inside are properly formatted */}
         </div>
