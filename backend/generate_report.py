@@ -41,13 +41,13 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
     table.style = 'Table Grid'
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    # Bold header row ("Strong" style):
+    # Bold header row:
     headers = ['Item reference', 'Category', 'Severity']
     for col, text in enumerate(headers):
         cell = table.cell(0, col)
         p = cell.paragraphs[0]
         run = p.add_run(text)
-        run.style = 'Strong'
+        run.bold = True
 
     for i, record in enumerate(priority_marker_records, 1): # start enumerating at 1 instead of 0
         table.cell(i, 0).text = str(record['reference']) or '! Not provided'
@@ -66,14 +66,14 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
     table.style = 'Table Grid'
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    # Bold header row ("Strong" style):
+    # Bold header row:
     headers = ['Category', 'Number of items', 'Maximum severity']
     for col, text in enumerate(headers):
         cell = table.cell(0, col)
         p = cell.paragraphs[0]
         run = p.add_run(text)
-        run.style = 'Strong'
-
+        run.bold = True
+    
     for i, category in enumerate(categories_list, 1): # start enumerating at 1 instead of 0
         if category == '! Not provided':
             category = None # convert category back to None (having been previously set to '! Not provided' for sorting purposes)
@@ -105,13 +105,13 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
         table.style = 'Table Grid'
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-        # Defect reference as header (merged cell, Strong style):
+        # Bold defect reference as header (merged cell):
         header_1 = table.cell(0, 0)
         header_2 = table.cell(0, 1)
         header = header_1.merge(header_2)
         p = header.paragraphs[0]
         run = p.add_run(f"Item reference: #{record['reference'] or 'N/A'}")
-        run.style = 'Strong'
+        run.bold = True
 
         table.cell(1,0).text = "Category"
         table.cell(1,1).text = record['category_name'] or '! Not provided' # if category is null, set to "! Not provided" (note, setting to None object would cause error)
