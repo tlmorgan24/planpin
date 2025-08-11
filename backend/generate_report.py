@@ -41,9 +41,13 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
     table.style = 'Table Grid'
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    table.cell(0, 0).text = 'Item reference'
-    table.cell(0, 1).text = 'Category'
-    table.cell(0, 2).text = 'Severity'
+    # Bold header row ("Strong" style):
+    headers = ['Item reference', 'Category', 'Severity']
+    for col, text in enumerate(headers):
+        cell = table.cell(0, col)
+        p = cell.paragraphs[0]
+        run = p.add_run(text)
+        run.style = 'Strong'
 
     for i, record in enumerate(priority_marker_records, 1): # start enumerating at 1 instead of 0
         table.cell(i, 0).text = str(record['reference']) or '! Not provided'
@@ -62,9 +66,13 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
     table.style = 'Table Grid'
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    table.cell(0, 0).text = 'Category'
-    table.cell(0, 1).text = 'Number of items'
-    table.cell(0, 2).text = 'Maximum severity'
+    # Bold header row ("Strong" style):
+    headers = ['Category', 'Number of items', 'Maximum severity']
+    for col, text in enumerate(headers):
+        cell = table.cell(0, col)
+        p = cell.paragraphs[0]
+        run = p.add_run(text)
+        run.style = 'Strong'
 
     for i, category in enumerate(categories_list, 1): # start enumerating at 1 instead of 0
         if category == '! Not provided':
@@ -97,10 +105,13 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
         table.style = 'Table Grid'
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
+        # Defect reference as header (merged cell, Strong style):
         header_1 = table.cell(0, 0)
         header_2 = table.cell(0, 1)
         header = header_1.merge(header_2)
-        header.text = f"Item reference: #{record['reference'] or 'N/A'}"
+        p = header.paragraphs[0]
+        run = p.add_run(f"Item reference: #{record['reference'] or 'N/A'}")
+        run.style = 'Strong'
 
         table.cell(1,0).text = "Category"
         table.cell(1,1).text = record['category_name'] or '! Not provided' # if category is null, set to "! Not provided" (note, setting to None object would cause error)
@@ -146,7 +157,7 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
                 paragraph = create_merged_paragraph(table, row_index+1, style='Caption')
                 run = paragraph.add_run("This is a caption")
 
-        doc.add_paragraph(style="Normal") # blank line after each table
+        doc.add_paragraph("", style="Normal") # blank line after each table
 
     return doc
 

@@ -353,7 +353,7 @@ function CategoryModal({ isOpen, setIsOpen, categoryId, setCategoryOptionsData }
                 </div>
                 <div className="form-item">
                     <label htmlFor="color">Colour</label>
-                    <input id="color" name="color" type="color" value={formValues.color} onChange={handleFormChange} />
+                    <input id="color" name="color" type="color" value={formValues.color ? formValues.color : '#9cc7b8'} onChange={handleFormChange} /> {/* default set to #9cc7b8 */}
                 </div>
                 <div className="big-buttons-container">
                     <button type="submit" className="accented">Save</button>
