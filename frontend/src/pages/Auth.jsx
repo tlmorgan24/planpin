@@ -33,7 +33,7 @@ export default function Auth() {
     return(
         loading ? <Loading message="Setting up..." /> :
         <div className="auth-container">
-            <h1>Welcome to PlanPin!</h1>
+            <h1>Welcome to PlanPin</h1>
             <div className='big-buttons-container'>
                 <button onClick={signUp}>Sign up</button>
                 <button onClick={logIn}>Log in</button>
@@ -46,7 +46,7 @@ export default function Auth() {
                 : null}
                 */}
             </div>
-            <p>
+            <p style={{marginBottom: '0'}}> {/* no bottom margin, as the <p> below already has its own pretty big top margin */}
                 Signing up is free!
             </p>
             <p>

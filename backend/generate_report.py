@@ -235,19 +235,13 @@ def mark_plan(marker_path, pdf_stream, page_number, x, y, color):
 # color may be string hex code or RGBA tuple:
 def recolor_marker(marker_image, new_color):
 
-    print("new_color 1", new_color)
-
     # If no color (e.g. user has not selected category for that marker), default to #9cc7b8 "--mid-accent-color" (hardcoded, could improve to use one source of truth in future):
-    if new_color is None:
+    if not new_color:
         new_color = '#9cc7b8'
-
-    print("new_color 2", new_color)
 
     # Convert hex to RGB if needed
     if isinstance(new_color, str):
         new_color = hex_to_rgb(new_color)
-
-    print("new_color 3", new_color)
 
     datas = marker_image.getdata()
 
@@ -264,9 +258,4 @@ def recolor_marker(marker_image, new_color):
 
 def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
-    print("hex_color", hex_color)
-    print("hex_color[0:0+2]", hex_color[0:0+2])
-    print("hex_color[2:2+2]", hex_color[2:2+2])
-    print("hex_color[4:4+2]", hex_color[4:4+2])
-
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
