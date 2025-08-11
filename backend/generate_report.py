@@ -141,23 +141,23 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
 
         # IMAGES
 
-        if len(images) == 0: continue # do not try to create image rows if there are no images; skip to the next record
-
-        if include_caption:
-            image_rows = range(image_start_row, image_start_row - 1 + 2*len(images), 2) # e.g. if 1 image, image_rows=[image_start_row]; if 2 images, image_rows=[image_start_row, image_start_row + 2]; etc.
-        else:
-            image_rows = range(image_start_row, image_start_row + len(images))
-
-        for row_index, image in zip(image_rows, images):
-            paragraph = create_merged_paragraph(table, row_index, align='center') # for merged cell with centred image
-            with Image.open(image) as img: # get image as Pillow image
-                insert_image(img, paragraph, MAX_WIDTH, MAX_HEIGHT)
+        if len(images) > 0: # do not try to create image rows if there are no images
 
             if include_caption:
-                paragraph = create_merged_paragraph(table, row_index+1, style='Caption')
-                run = paragraph.add_run("This is a caption")
+                image_rows = range(image_start_row, image_start_row - 1 + 2*len(images), 2) # e.g. if 1 image, image_rows=[image_start_row]; if 2 images, image_rows=[image_start_row, image_start_row + 2]; etc.
+            else:
+                image_rows = range(image_start_row, image_start_row + len(images))
 
-        doc.add_paragraph("Will this work?", style="Normal") # blank line after each paragraph (uses non-breaking space to be sure won't be treated as empty and tables merged)
+            for row_index, image in zip(image_rows, images):
+                paragraph = create_merged_paragraph(table, row_index, align='center') # for merged cell with centred image
+                with Image.open(image) as img: # get image as Pillow image
+                    insert_image(img, paragraph, MAX_WIDTH, MAX_HEIGHT)
+
+                if include_caption:
+                    paragraph = create_merged_paragraph(table, row_index+1, style='Caption')
+                    run = paragraph.add_run("This is a caption")
+
+        doc.add_paragraph("\u00A0") # blank line after each table (uses non-breaking space to be sure won't be treated as empty and tables)
 
     return doc
 
