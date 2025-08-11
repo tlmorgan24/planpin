@@ -25,8 +25,8 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
 
     ## ---- Title & subtitle ----
 
-    doc.add_heading("PlanPin report", level=0)
-    doc.add_paragraph("This inspection report was generated with PlanPin", style="Subtitle")
+    doc.add_heading("Inspection report", level=0)
+    doc.add_paragraph("This report was generated with PlanPin", style="Subtitle")
 
 
     ## ---- Executive summary ----
