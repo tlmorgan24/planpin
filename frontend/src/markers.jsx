@@ -615,14 +615,14 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 {/* Item reference, e.g. "123" (note we make the input required, matching database constraint of NOT NULL): */}
                 <div className="form-item">
                     <label htmlFor="reference">Reference</label>
-                    <input id="reference" name="reference" type="number" min="0" required value={formValues.reference} onChange={handleFormChange} />
+                    <input id="reference" name="reference" type="number" min="0" required placeholder="Number required" value={formValues.reference} onChange={handleFormChange} />
                 </div>
 
                 {/* Item category, e.g. "Internal walls" (NB, I use categoryId instead of category-id for attributes, even though against HTML convention, so it matches the formValues state and handleFormChange works properly): */}
                 <div className="form-item">
                     <label htmlFor="categoryId">Category</label>
                     <select id="categoryId" name="categoryId" value={formValues.categoryId} onChange={handleFormChange} >
-                        <option value="">--Choose a category--</option>
+                        <option value="">--Choose--</option>
                         {categoryOptionsData.map(row => (
                             <option key={row['id']} value={row['id']}>{row['category_name']}</option> // ensures IDs are stored as form values, but category NAMES are what are actually shown to user
                         ))}
@@ -639,7 +639,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 {/* Severity of item, 0-5 (0 being no defect; 5 being failure): */}
                 <div className="form-item">
                     <label htmlFor="severity">Severity</label>
-                    <input id="severity" name="severity" type="number" value={formValues.severity} onChange={handleFormChange} />
+                    <input id="severity" name="severity" type="number" placeholder="Must be numerical" value={formValues.severity} onChange={handleFormChange} />
                 </div>
                 
                 {/* Extent of item, 0-5 (0 being no defect; 5 being full extent of element): */}

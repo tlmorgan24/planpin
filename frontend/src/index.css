@@ -342,7 +342,7 @@ form {
 }
 
 .form-item label {
-  width: 80px; /* fixed label width */
+  width: 85px; /* fixed label width */
   margin-left: 10px;
   margin-right: 10px;
   font-weight: bold;

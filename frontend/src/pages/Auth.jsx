@@ -160,13 +160,13 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen, setLoading }) {
                 {/* Email: */}
                 <div className="form-item">
                     <label htmlFor="email">Email</label>
-                    <input id="email" name="email" type="email" placeholder="Required" value={formValues.email} onChange={handleFormChange} />
+                    <input id="email" name="email" type="email" required placeholder="Required" value={formValues.email} onChange={handleFormChange} />
                 </div>
 
                 {/* Password: */}
                 <div className="form-item">
                     <label htmlFor="password">Password</label>
-                    <input id="password" name="password" type="password" placeholder={authType === 'sign-up' ? "8+ characters" : "Required"} value={formValues.password} onChange={handleFormChange} />
+                    <input id="password" name="password" type="password" required placeholder={authType === 'sign-up' ? "8+ characters" : "Required"} value={formValues.password} onChange={handleFormChange} />
                 </div>
 
                 {/* Company (if signing up) (RELIC, NOW COMMENTED OUT AS NOT COLLECTING THIS INFO): 
