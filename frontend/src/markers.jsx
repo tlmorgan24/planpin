@@ -347,6 +347,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
     // If user requests close without pressing submit, close form and without submitting to database and erase the marker just added:
     async function onRequestClose() {
 
+        if (loading) return; // simple workaround to solve the fact that, if user immediately closed modal while still loading, markerInDb may not have had a chance to be set as true (which would cause marker to disappear from view as per below, even if marker already exists)
         if (!markerInDb) {
             setClickLocations(prev => prev.filter(loc => loc.id !== clickedId)); // erase marker just added (could just pop the last item, but we're doing by ID to be safe, just in case last item somehow isn't the just-clicked marker)
         }

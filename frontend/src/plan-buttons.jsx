@@ -19,7 +19,7 @@ export function GenerateReportButton() {
 
     async function generateReport() {
 
-        toast.loading('Generating report...', {id: 'loading'});
+        toast.loading('Generating report (this may take a few minutes)...', {id: 'loading'});
         
         // First, ensure fully synced with cloud if on mobile (as all reports are generated from cloud data):
         if (Capacitor.getPlatform() !== 'web') {
