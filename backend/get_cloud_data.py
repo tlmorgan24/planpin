@@ -38,7 +38,10 @@ def get_priority_marker_ids(supabase, plan_id, limit):
     return [record['id'] for record in response.data]
 
 def get_priority_marker_records(all_marker_records, priority_ids):
-    return [record for record in all_marker_records if record['id'] in priority_ids]
+    # We want to preserve order of priority_ids. Fastest way is to turn all_marker_records into dict to easily index ID from
+    records_by_id = {record['id']: record for record in all_marker_records}
+    priority_records = [records_by_id[record_id] for record_id in priority_ids if record_id in records_by_id]
+    return priority_records
 
 
 # Get category records (note, we don't really care if categories not specific to this plan are loaded, as we don't expect the user will have many categories in total anyway):
