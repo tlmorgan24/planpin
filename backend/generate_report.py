@@ -13,7 +13,7 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
 
     # max dimensions of images (inches):
     MAX_WIDTH = 5
-    MAX_HEIGHT = 4
+    MAX_HEIGHT = 3.5
 
     marker_records, priority_marker_records, marker_images, plan_pdf_stream = get_data(access_token, refresh_token, user_id, plan_id, priority_limit)
 
