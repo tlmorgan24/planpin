@@ -86,9 +86,12 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
 
     ## ---- Full item data ----
 
-    doc.add_heading("Full item data", level=1)
+    doc.add_page_break()
 
-    for record in marker_records:
+    doc.add_heading("Full item data", level=1)
+    
+    n_records = len(marker_records)
+    for r, record in enumerate(marker_records):
 
         marker_id = record['id']
         images = marker_images[marker_id]
@@ -157,7 +160,11 @@ def generate_report(access_token, refresh_token, user_id, plan_id, priority_limi
                     paragraph = create_merged_paragraph(table, row_index+1, style='Caption')
                     run = paragraph.add_run("This is a caption")
 
-        doc.add_paragraph("\u00A0") # blank line after each table (uses non-breaking space to be sure won't be treated as empty and tables)
+        # Instead of just a blank line between each table, we'll have a page break.
+        # This is because each table tends to be quite long, so it works better visually this way:
+        if r < n_records - 1: # don't add page break after last record
+            doc.add_page_break()
+        #doc.add_paragraph("\u00A0") # blank line after each table (uses non-breaking space to be sure won't be treated as empty and tables)
 
     return doc
 

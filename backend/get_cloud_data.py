@@ -30,8 +30,8 @@ def get_priority_marker_ids(supabase, plan_id, limit):
         .select('id')
         .eq('plan_id', plan_id) # filter to only the plan the user is generating the report for
         .is_('deleted_at', None) # where deleted_at is null (non-deleted records)
-        .order('reference') # second level of ordering is by reference (so logically ordered within each severity level)
         .order('severity', desc=True) # first level of ordering is by severity (so later limit gets most severe defects)
+        .order('reference') # second level of ordering is by reference (so logically ordered within each severity level)
         .limit(limit) # e.g. if limit=5, get top 5 defects based on severity
         .execute()
     )
