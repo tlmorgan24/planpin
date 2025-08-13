@@ -7,6 +7,7 @@ import { PlanContext } from "./pages/Plan"; // to access context variables
 import { saveFile } from "./pdf-setup";
 import { Capacitor } from "@capacitor/core";
 import { fullSync } from "./sync";
+import { checkConnection } from "./network";
 
 
 // -- GENERATE REPORT --
@@ -20,6 +21,12 @@ export function GenerateReportButton() {
     async function generateReport() {
 
         toast.loading('Generating report (this may take a few minutes)...', {id: 'loading'});
+
+        const hasConnection = await checkConnection();
+        if (!hasConnection) {
+            toast.error('Please connect to the internet to generate a report', {id: 'loading'});
+            return;
+        }
         
         // First, ensure fully synced with cloud if on mobile (as all reports are generated from cloud data):
         if (Capacitor.getPlatform() !== 'web') {

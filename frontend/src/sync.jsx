@@ -6,6 +6,7 @@ import { DbContext, UserContext } from "./main";
 import { HomeContext } from "./pages/Home";
 import { getFilenames, saveFile, readAsBlob, removeFile } from "./pdf-setup";
 import Loading from "./pages/Loading";
+import { checkConnection } from "./network";
 
 /*
 NOTE: a synced_at column exists in each local table to mean record-wise "last PUSHED TO cloud".
@@ -54,6 +55,13 @@ export function SyncButton() {
 export async function syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen=null, refreshPdfObjects=null) {
 
     if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined || (userId !== 'guest' && !supabase)) return;
+    
+    const hasConnection = await checkConnection();
+    if (!hasConnection && userId !== 'guest') {
+        toast.error('Please connect to the internet to enable syncing', {id: 'syncing'});
+        return;
+    }
+    
     if (setModalIsOpen) setModalIsOpen(true);
     toast.loading("Syncing (this may take a few minutes)...", {id: 'syncing'});
     

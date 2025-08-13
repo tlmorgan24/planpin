@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import MenuBar from "../MenuBar";
+import { checkConnection } from '../network';
 
 export default function Contact() {
 
@@ -15,6 +16,12 @@ export default function Contact() {
         e.preventDefault();
 
         toast.loading('Sending message...', {id: 'loading'});
+
+        const hasConnection = await checkConnection();
+        if (!hasConnection) {
+            toast.error('Please connect to the internet to send a message.', {id: 'loading'});
+            return;
+        }
 
         //const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
         //const serverPort = import.meta.env.VITE_SERVER_PORT;

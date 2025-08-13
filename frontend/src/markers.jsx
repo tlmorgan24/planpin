@@ -1,4 +1,5 @@
 import { forwardRef, useContext, useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import PinIcon from "./assets/PinIcon"; // manually pasted SVG code into React component to allow custom fill color
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
@@ -104,7 +105,7 @@ export const MarkerLayer = forwardRef(({ page, canvas, mapping, drawnWindow }, m
             markerCount = count;
         }
         if (markerCount >= allowedMarkers) {
-            toast.info((<div>You have already reached your limit of {allowedMarkers} items. Please <a href='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</a> or delete existing items or plans to add more.</div>));
+            toast.info((<div>You have already reached your limit of {allowedMarkers} items. Please <Link to='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</Link> or delete existing items or plans to add more.</div>));
             return;
         }
 
@@ -386,7 +387,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             imageCount = count;
         }
         if (imageCount >= allowedImages) {
-            toast.info((<div>You have already reached your limit of {allowedImages} images. Please <a href='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</a> or delete existing images (or image-containing items or plans) to add more.</div>));
+            toast.info((<div>You have already reached your limit of {allowedImages} images. Please <Link to='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</Link> or delete existing images (or image-containing items or plans) to add more.</div>));
             return;
         }
 

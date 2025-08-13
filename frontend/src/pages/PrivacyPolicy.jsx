@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
                 <p>This policy may be updated over time. In the case of significant changes, notice will be provided through the app or email.</p>
 
                 <h2>Contact</h2>
-                <p>In the case of any questions regarding this policy, users are welcome to use the <a href="/contact">contact form</a> or email <a href="mailto:contact@planpin.app">contact@planpin.app</a>.</p>
+                <p>In the case of any questions regarding this policy, users are welcome to use the <Link to="/contact">contact form</Link> or email <a href="mailto:contact@planpin.app">contact@planpin.app</a>.</p>
 
             </div>
 

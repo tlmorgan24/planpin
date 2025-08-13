@@ -3,11 +3,12 @@ import { Capacitor } from "@capacitor/core";
 import { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Purchases as NativePurchases, LOG_LEVEL } from "@revenuecat/purchases-capacitor"; // used on iOS
+import { Purchases as NativePurchases, LOG_LEVEL, PURCHASES_ERROR_CODE } from "@revenuecat/purchases-capacitor"; // used on iOS
 import { Purchases as WebPurchases } from "@revenuecat/purchases-js"; // used on web (note web SDK does not support LOG_LEVEL)
+import { UserContext } from "../main";
 import entitlements from "../entitlements.json";
 import MenuBar from "../MenuBar";
-import { UserContext } from "../main";
+import { checkConnection } from "../network";
 
 export default function Pricing() {
 
@@ -15,44 +16,55 @@ export default function Pricing() {
     const navigate = useNavigate()
 
     async function handleClick(entitlementId) {
+
+        // Note, we are confident user is on native mobile here, as purchase button is not shown on web (user is directed to go to app instead to change plan)
+
         if (!userId) { // user not signed in or signed up - take them to Auth screen
-            toast.info('Log in or sign up to get started')
+            toast.info('Log in or sign up to get started', {id: 'purchasing'});
             navigate('/auth'); // note, "auth" isn't the actual route for auth screen. It uses "*", meaning any undefined route (like "auth") will route there
             return;
         }
         if (entitlementId === subscriptionTier) {
-            toast.info(<>This plan is already selected.{entitlementId === "PlanPin Starter" ? null : <> To cancel, <CancellationLink>click here</CancellationLink>.</>}</>);
+            toast.info(<>This plan is already selected.{entitlementId === "PlanPin Starter" ? null : <> To cancel, <CancellationLink>click here</CancellationLink>.</>}</>, {id: 'purchasing'});
             return;
         }
 
         // If user wants to switch to the free plan, they are effectively wanting to cancel their subscription, which they must do manually at the provided link:
         if (entitlementId === "PlanPin Starter") {
-            toast.info(<>To convert to the free plan, cancel your subscription by <CancellationLink>clicking here</CancellationLink>.</>);
+            toast.info(<>To convert to the free plan, cancel your subscription by <CancellationLink>clicking here</CancellationLink>.</>, {id: 'purchasing'});
+            return;
         }
 
-        toast.loading("Purchasing plan", {id: 'loading'});
+        toast.loading("Purchasing plan", {id: 'purchasing'});
+
+        const hasConnection = await checkConnection();
+        if (!hasConnection) {
+            toast.error('Please connect to the internet to change plan.', {id: 'purchasing'});
+            return;
+        }
 
         // Now, complete the purchase in RevenueCat
         // Note: entitlements.json has id matching the identifier assigned to the entitlement in RevenueCat, and packageId matching the identifier assigned to the package in RevenueCat
         // Also note: if user is switching plans, the process is still to buy the new plan; the old one will be cancelled automatically (i.e., no separate logic)
 
         const entitlement = entitlements.find(entitlement => entitlement.id === entitlementId);
-        const packageId = entitlement.packageId;
-        const offerings = await Purchases.getOfferings(); // available products, as object keyed by product identifier assigned in RevenueCat, matching the ID on App Store Connect (which I have matched to the productId in my entitlements.json).
-        const pkg = offerings.current.packageByIdentifier[packageId];
+        const packageId = entitlement.packageId; // matching package IDs assigned in RevenueCat
+        const offerings = await NativePurchases.getOfferings();
+        //const pkg = offerings.current.packageByIdentifier[packageId]; // packageByIdentifier not a valid method
+        const pkg = offerings.current.availablePackages.find(p => p.identifier === packageId); // note offerings.current.availablePackages is an array of package objects, each with an identifier property
 
         try {
-            const purchaseResult = await Purchases.purchasePackage(pkg);
+            const purchaseResult = await NativePurchases.purchasePackage({ aPackage: pkg });
             if (typeof purchaseResult.customerInfo.entitlements.active[entitlementId] !== "undefined") {      
                 // Update entitlement-related variables of UserContext:
                 setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
-                toast.success("Plan purchased", {id: 'loading'});
+                toast.success("Plan purchased", {id: 'purchasing'});
             }
         } catch (error) {
             if (error.code === PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR) {
-                toast.error("Plan purchase cancelled", {id: 'loading'});
+                toast.info("Plan purchase cancelled", {id: 'purchasing'});
             } else {
-                toast.error("Something went wrong", {id: 'loading'});
+                toast.error("Something went wrong", {id: 'purchasing'});
             }
         }
 
@@ -73,7 +85,16 @@ export default function Pricing() {
                     className="card"
                     style={entitlement.id === subscriptionTier ? {borderWidth: '5px'} : {} /* properties left as defaults defined in index.css if not current plan */}
                 >
-                    <h2>{entitlement.packageId}</h2>
+                    <h2 style={entitlement.id === subscriptionTier ? {marginBottom: '0', paddingBottom: '0'} : {}}>
+                        {entitlement.packageId}
+                    </h2>
+                    {entitlement.id === subscriptionTier ?
+                        <p style={{marginTop: '0', paddingTop: '0', color: 'var(--inverse-accent-color)'}}>
+                            (Current plan)
+                        </p>
+                        :
+                        null
+                    }
                     <h3 style={{margin: '0'}}>
                         {entitlement.poundsPerMonth ? `£${entitlement.poundsPerMonth}/month` : "Free"}
                     </h3>
@@ -151,6 +172,16 @@ function RefreshLink({children, setSubscriptionTier, setAllowedPlans, setAllowed
 
 // SET UP REVENUECAT FOR CURRENT AUTHENTICATED USER (will be executed on user sign-in, see Auth.jsx):
 export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
+
+    /* 
+    Note internet connection required for first-time config, but then caching is done automatically.
+    
+    Connection check is already done in parent of initPurchases if this is a first-time sign-in, so we are 
+    confident first-time config will be carried out properly.
+
+    Apart from this, no need to throw error if no connection, as RevenueCat automatically decides whether to access
+    cache or not when you try and run the config, based on if there is connection or not.
+    */
 
     // RevenueCat Purchases and LOG_LEVEL must come from separate packages (web vs native), which I imported under separate names.
     // There is also a separate API key for web vs native.

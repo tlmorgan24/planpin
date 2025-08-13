@@ -60,7 +60,9 @@ export default function App() {
             const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
             if (error) console.error("Error: ", error);
             if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
-                await setUpUser('log-in', {userId: data.session.user.id, email: data.session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); // not passing "setLoading", as loading screen already being handled here
+                await setUpUser(true, 'log-in', {userId: data.session.user.id, email: data.session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); 
+                // ^ passing "true" for "fromCache" variable, meaning we can forego database updates and therefore do not require internet connection
+                // ^ not passing "setLoading", as loading screen already being handled here
             }
             // Else, no previously saved session, so do nothing and leave userId as-is (undefined); will end up taking user to authentication screen
             setCheckedSession(true);
@@ -101,6 +103,7 @@ export default function App() {
                             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                             <Route path="/pricing" element={<Pricing />} />
                         </Routes>
+                        {/* Modals and Toaster within router so can contain links to other pages etc: */}
                         {userId === undefined ? 
                             null
                             :
@@ -109,10 +112,10 @@ export default function App() {
                                 <CategoriesModal />
                             </>
                         }
+                        <Toaster position="bottom-center" richColors /> {/* for easy pop-ups for loading, confirmation, etc (same toaster for both loading screen and main app) */}
                     </BrowserRouter>
                 </AppProvider>
             )}
-            <Toaster position="bottom-center" richColors /> {/* for easy pop-ups for loading, confirmation, etc (same toaster for both loading screen and main app) */}
         </>
     );
 }

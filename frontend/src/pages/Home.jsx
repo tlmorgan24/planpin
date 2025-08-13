@@ -149,7 +149,7 @@ function PDFInput() {
             planCount = count;
         }
         if (planCount >= allowedPlans) {
-            toast.info((<div>You have already reached your limit of {allowedPlans} plans. Please <a href='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</a> or delete existing plans to add more.</div>), { id: 'uploading' });
+            toast.info((<div>You have already reached your limit of {allowedPlans} plans. Please <Link to='/pricing' style={{color: '#0973DC'}}>upgrade your subscription</Link> or delete existing plans to add more.</div>), { id: 'uploading' });
             return;
         }
 
