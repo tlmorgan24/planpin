@@ -193,7 +193,8 @@ export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans
     // NOTE: web implementation may refuse to run due to violation of content security policy if using an adblocker. Seems to work properly without adblock on chrome.
     if (Capacitor.getPlatform() !== 'web') {
         const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
-        await NativePurchases.setLogLevel({ level: LOG_LEVEL.DEBUG }); // for more detailed error messages (not supported on web version)
+        // Debug logging removed for production:
+        //await NativePurchases.setLogLevel({ level: LOG_LEVEL.DEBUG }); // for more detailed error messages (not supported on web version)
         await NativePurchases.configure({ 
             apiKey: revenueCatApiKey,
             //appUserId: userId, // <-- DOES NOT WORK FOR CAPACITOR SDK, have to use .logIn() method below instead
