@@ -8,7 +8,7 @@ import ConfirmModal from './ConfirmModal';
 
 export default function SettingsModal() {
 
-    const { userId, setUserId, saveDir } = useContext(UserContext);
+    const { userId, setUserId, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle } = useContext(UserContext);
     const { db, supabase } = useContext(DbContext);
     const { settingsOpen, setSettingsOpen } = useContext(AppContext);
 
@@ -19,7 +19,7 @@ export default function SettingsModal() {
         setSettingsOpen(false);
     }
     async function logOutUser() {
-        await logOut(supabase, setUserId);
+        await logOut(supabase, setUserId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
         setSettingsOpen(false);
     }
     async function deleteUserAccount() {

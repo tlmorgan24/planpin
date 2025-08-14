@@ -54,8 +54,8 @@ export default function Auth() {
             <p>
                 <Link to="/help">How to use PlanPin</Link><br/>
                 <Link to="/pricing">Subscription plans</Link><br/>
-                <Link to="/privacy-policy">Privacy policy</Link><br/>
-                <Link to="/contact">Get in touch</Link>
+                <Link to="/contact">Contact</Link><br/>
+                <Link to="/privacy-policy">Privacy policy</Link>
             </p>
             <img className="bottom-logo" src="/logo-text-beside.svg" />
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} setLoading={setLoading} /> {/* will only be shown when modalIsOpen set to true */}
@@ -273,7 +273,7 @@ export async function setUpUser(fromCache, authType, object, setUserId, setPdfFo
 
 }
 
-export async function logOut(supabase, setUserId) {
+export async function logOut(supabase, setUserId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
     toast.loading('Logging out...', {id: 'log-out'});
 
@@ -281,6 +281,11 @@ export async function logOut(supabase, setUserId) {
     if (error) console.error('Error signing out: ', error.message);
 
     setUserId(undefined);
+    setSubscriptionTier(undefined);
+    setAllowedPlans(undefined);
+    setAllowedMarkers(undefined);
+    setAllowedImages(undefined);
+    setAllowedReportsThisBillingCycle(undefined);
 
     toast.success('Logged out', {id: 'log-out'});
 

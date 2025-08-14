@@ -69,45 +69,46 @@ export default function Contact() {
     }
 
     return (
-        <div className="contact-container">
-
+        <>
             <MenuBar />
+            <div className="contact-container">
 
-            <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit}>
 
-                <h1>Send a message</h1>
+                    <h1>Send a message</h1>
 
-                {/* Name: */}
-                <div className="form-item">
-                    <label htmlFor="name">Name</label>
-                    <input id="name" name="name" type="text" value={formValues.name} onChange={handleFormChange} />
-                </div>
+                    {/* Name: */}
+                    <div className="form-item">
+                        <label htmlFor="name">Name</label>
+                        <input id="name" name="name" type="text" value={formValues.name} onChange={handleFormChange} />
+                    </div>
 
-                {/* Email: */}
-                <div className="form-item">
-                    <label htmlFor="email">Email</label>
-                    <input id="email" name="email" type="email" value={formValues.email} onChange={handleFormChange} />
-                </div>
+                    {/* Email: */}
+                    <div className="form-item">
+                        <label htmlFor="email">Email</label>
+                        <input id="email" name="email" type="email" value={formValues.email} onChange={handleFormChange} />
+                    </div>
 
-                {/* Message: */}
-                <div className="form-item">
-                    <label htmlFor="message">Message</label>
-                    <textarea ref={textAreaRef} id="message" name="message" value={formValues.message} onChange={handleTextAreaChange} />
-                </div>
+                    {/* Message: */}
+                    <div className="form-item">
+                        <label htmlFor="message">Message</label>
+                        <textarea ref={textAreaRef} id="message" name="message" value={formValues.message} onChange={handleTextAreaChange} />
+                    </div>
 
-                <p>Alternatively, send an email to <a href="mailto:contact@planpin.app">contact@planpin.app</a>.</p>
+                    <p>Alternatively, send an email to <a href="mailto:contact@planpin.app">contact@planpin.app</a>.</p>
 
-                <div className="big-buttons-container">
-                    <button type="submit" className="accented">Submit</button>
-                </div>
+                    <div className="big-buttons-container">
+                        <button type="submit" className="accented">Submit</button>
+                    </div>
 
-            </form>
+                </form>
 
-            <div style={{marginBottom: '1rem'}}></div> {/* quick fix to leave appropriate gap above bottom logo */}
+                <div style={{marginBottom: '1rem'}}></div> {/* quick fix to leave appropriate gap above bottom logo */}
 
-            <Link to="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></Link>
+                <Link to="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></Link>
 
-        </div>
+            </div>
+        </>
     );
 
 }

@@ -1,7 +1,7 @@
 import React from "react";
 import { Capacitor } from "@capacitor/core";
 import { useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Purchases as NativePurchases, LOG_LEVEL, PURCHASES_ERROR_CODE } from "@revenuecat/purchases-capacitor"; // used on iOS
 import { Purchases as WebPurchases } from "@revenuecat/purchases-js"; // used on web (note web SDK does not support LOG_LEVEL)
@@ -71,72 +71,77 @@ export default function Pricing() {
     }
 
     return (
-        <div className="pricing-container">
-
+        <>
             <MenuBar />
-            
-            <h1>Choose Your Plan</h1>
-
-            <div className="cards-container">
+            <div className="pricing-container">
                 
-                {entitlements.map((entitlement) => (
-                <div
-                    key={entitlement.id}
-                    className="card"
-                    style={entitlement.id === subscriptionTier ? {borderWidth: '5px'} : {} /* properties left as defaults defined in index.css if not current plan */}
-                >
-                    <h2 style={entitlement.id === subscriptionTier ? {marginBottom: '0', paddingBottom: '0'} : {}}>
-                        {entitlement.packageId}
-                    </h2>
-                    {entitlement.id === subscriptionTier ?
-                        <p style={{marginTop: '0', paddingTop: '0', color: 'var(--inverse-accent-color)'}}>
-                            (Current plan)
-                        </p>
+                <h1>Choose Your Plan</h1>
+
+                <div className="cards-container">
+                    
+                    {entitlements.map((entitlement) => (
+                    <div
+                        key={entitlement.id}
+                        className="card"
+                        style={entitlement.id === subscriptionTier ? {borderWidth: '5px'} : {} /* properties left as defaults defined in index.css if not current plan */}
+                    >
+                        <h2 style={entitlement.id === subscriptionTier ? {marginBottom: '0', paddingBottom: '0'} : {}}>
+                            {entitlement.packageId}
+                        </h2>
+                        {entitlement.id === subscriptionTier ?
+                            <p style={{marginTop: '0', paddingTop: '0', color: 'var(--inverse-accent-color)'}}>
+                                (Current plan)
+                            </p>
+                            :
+                            null
+                        }
+                        <h3 style={{margin: '0'}}>
+                            {entitlement.poundsPerMonth ? `£${entitlement.poundsPerMonth}/month` : "Free"}
+                        </h3>
+                        <ul className="bullets">
+                            <p>Across unlimited devices:</p>
+                            <li>Store up to <strong>{entitlement.plans} plan{entitlement.plans !== 1 ? "s" : ""}</strong></li>
+                            <li>Pin up to <strong>{entitlement.items} items</strong> at a time</li>
+                            <li>Attach up to <strong>{entitlement.images} image{entitlement.imagesPerItem !== 1 ? "s" : ""}</strong> at a time</li>
+                            {/* for now, not implemented limit on reports:
+                            <li>Generate up to <strong>{entitlement.reportsPerMonth} report{entitlement.reportsPerMonth !== 1 ? "s" : ""}</strong> / month</li>
+                            {entitlement.extraFeatures.length > 0 &&
+                            entitlement.extraFeatures.map((feature, i) => (
+                                <li key={i}>{feature}</li>
+                            ))}
+                            */}
+                        </ul>
+                        {Capacitor.getPlatform() !== 'web' ? // RevenueCat only valid on mobile app, so direct users to this if they are on web
+                            <div className="big-buttons-container">
+                                <button id={entitlement.id} onClick={() => handleClick(entitlement.id)} style={entitlement.id === subscriptionTier ? {backgroundColor:"var(--mid-primary-color)", cursor:"not-allowed"} : {}}> {/* if current plan, grey out button as it shouldn't be clicked, otherwise properties left as defaults defined in index.css */}
+                                    {entitlement.id === subscriptionTier ? 'Current plan' : 'Choose plan'}
+                                </button>
+                            </div>
+                        :
+                            <p style={{fontWeight: 'bold'}}>
+                                Manage subscriptions through the PlanPin iOS app
+                            </p>
+                        }
+
+                    </div>
+                    ))}
+                
+                </div>
+
+                <p>
+                    If these plans don't meet your needs, <Link to="/contact">get in touch</Link>.
+                    {userId ? 
+                        <>
+                            <br/>
+                            Recent change not showing? <RefreshLink setSubscriptionTier={setSubscriptionTier} setAllowedPlans={setAllowedPlans} setAllowedMarkers={setAllowedMarkers} setAllowedImages={setAllowedImages} setAllowedReportsThisBillingCycle={setAllowedReportsThisBillingCycle}>Click here</RefreshLink> to refresh.
+                        </>
                         :
                         null
                     }
-                    <h3 style={{margin: '0'}}>
-                        {entitlement.poundsPerMonth ? `£${entitlement.poundsPerMonth}/month` : "Free"}
-                    </h3>
-                    <ul className="features">
-                        <p>Across unlimited devices:</p>
-                        <li>Store up to <strong>{entitlement.plans} plan{entitlement.plans !== 1 ? "s" : ""}</strong></li>
-                        <li>Pin up to <strong>{entitlement.items} items</strong> at a time</li>
-                        <li>Attach up to <strong>{entitlement.images} image{entitlement.imagesPerItem !== 1 ? "s" : ""}</strong> at a time</li>
-                        {/* for now, not implemented limit on reports:
-                        <li>Generate up to <strong>{entitlement.reportsPerMonth} report{entitlement.reportsPerMonth !== 1 ? "s" : ""}</strong> / month</li>
-                        {entitlement.extraFeatures.length > 0 &&
-                        entitlement.extraFeatures.map((feature, i) => (
-                            <li key={i}>{feature}</li>
-                        ))}
-                        */}
-                    </ul>
-                    {Capacitor.getPlatform() !== 'web' ? // RevenueCat only valid on mobile app, so direct users to this if they are on web
-                        <div className="big-buttons-container">
-                            <button id={entitlement.id} onClick={() => handleClick(entitlement.id)} style={entitlement.id === subscriptionTier ? {backgroundColor:"var(--mid-primary-color)", cursor:"not-allowed"} : {}}> {/* if current plan, grey out button as it shouldn't be clicked, otherwise properties left as defaults defined in index.css */}
-                                {entitlement.id === subscriptionTier ? 'Current plan' : 'Choose plan'}
-                            </button>
-                        </div>
-                    :
-                        <p style={{fontWeight: 'bold'}}>
-                            Manage subscriptions through the PlanPin iOS app
-                        </p>
-                    }
-
-                </div>
-                ))}
+                </p>
             
             </div>
-
-            {userId ? 
-                <p>
-                    Recent change not showing? <RefreshLink setSubscriptionTier={setSubscriptionTier} setAllowedPlans={setAllowedPlans} setAllowedMarkers={setAllowedMarkers} setAllowedImages={setAllowedImages} setAllowedReportsThisBillingCycle={setAllowedReportsThisBillingCycle}>Click here</RefreshLink> to refresh.
-                </p>
-                :
-                <div style={{marginTop: '1rem'}}></div> // hack to leave enough space
-            }
-        
-        </div>
+        </>
     );
 };
 

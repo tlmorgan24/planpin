@@ -210,9 +210,8 @@ export default function Plan() {
     
     return(
         <PlanProvider>
+            <MenuBar />
             <div className="plan-container">
-
-                <MenuBar />
         
                 {/* PDF viewer */}
 

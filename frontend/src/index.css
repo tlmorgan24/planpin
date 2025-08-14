@@ -18,7 +18,7 @@
   --usable-width: calc(100vw - 2 * var(--body-margin));
   --usable-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--body-margin));
   --menu-bar-padding: 6px;
-  --menu-bar-height: calc(1.2rem + 2 * var(--menu-bar-padding) + env(safe-area-inset-top));
+  --menu-bar-height: calc(1.2rem + 2 * var(--menu-bar-padding) + env(safe-area-inset-top)); /* enough to contain the menu bar content and padding, including safe area inset */
 }
 
 /* 
@@ -54,7 +54,7 @@ html, body {
   top: 0;
   left: 0;
   right: 0;
-  height: var(--menu-bar-height); /* should be enough to contain the menu bar content */
+  height: var(--menu-bar-height);
   padding: var(--menu-bar-padding);
   padding-top: calc(var(--menu-bar-padding) + env(safe-area-inset-top));
   background-color: var(--mid-primary-color);
@@ -81,9 +81,13 @@ a {
 /* Top-level containers: */
 
 .home-container, .plan-container, .auth-container, .contact-container, .privacy-policy-container, .loading-container, .pricing-container, .help-container {
-  position: relative; /* set to relative to allow it to be a containing block for children */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   overflow-y: auto;
   margin-top: calc(var(--menu-bar-height) - env(safe-area-inset-top)); /* push content down to avoid menu bar (we take away safe area inset, as this is already accounted for in --menu-bar-height */
+  padding: var(--body-margin);
+  padding-top: 0;
   width: 100%;
   text-align: center;
   display: flex;
@@ -101,6 +105,10 @@ a {
 
 .privacy-policy {
   text-align: left;
+  max-width: 800px;
+}
+
+.help-container {
   max-width: 800px;
 }
 
@@ -136,7 +144,7 @@ a {
   align-items: center;
 }
 
-.features {
+.bullets {
   width: 100%;
   text-align: left;
   padding-left: 1.25rem;
@@ -145,8 +153,11 @@ a {
   list-style-position: inside;
 }
 
-.features li {
+.bullets li {
   margin: 0.3rem 0;
+  /* so that, if spills over multiple lines, they are indented same as first line: */
+  padding-left: 1rem;
+  text-indent: -1rem;
 }
 
 
@@ -196,6 +207,18 @@ markerLayer fill entirety of pageCanvas.
 }
 
 .marker:hover {
+  transform: scale(1.05);
+}
+
+/* Tutorial */
+
+.tutorial-button {
+  width: 50px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.tutorial-button:hover {
   transform: scale(1.05);
 }
 

@@ -26,10 +26,10 @@
         "packageId": "Professional",
         "productId": "app.planpin.planpin.pro.monthly",
         "poundsPerMonth": 29,
-        "plans": 10,
-        "items": 1000,
-        "images": 2000,
-        "reportsPerMonth": 20,
+        "plans": 20,
+        "items": 500,
+        "images": 1000,
+        "reportsPerMonth": 30,
         "extraFeatures": []
     }
 ]

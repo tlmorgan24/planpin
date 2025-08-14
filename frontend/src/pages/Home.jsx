@@ -80,9 +80,8 @@ function HomeProvider({children}) {
 export default function Home() {
     return(
         <HomeProvider>
+            <MenuBar />
             <div className="home-container">
-
-                <MenuBar />
 
                 <h1>My Plans</h1>
                 {/* <RefreshPlansButton /> */}
