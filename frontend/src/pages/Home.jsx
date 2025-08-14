@@ -98,6 +98,14 @@ export default function Home() {
                     <Link to="/pricing">Subscription plans</Link><br />
                     <Link to="/contact">Contact</Link><br/>
                     <Link to="/privacy-policy">Privacy policy</Link>
+                    { Capacitor.getPlatform() !== 'web' ?
+                        <>
+                            <br/>
+                            <a href="https://planpin.app">planpin.app website</a>
+                        </>
+                        :
+                        null
+                    }
                 </p>
                 <img className="bottom-logo" src="/logo-text-beside.svg" />
 

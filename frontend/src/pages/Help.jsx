@@ -33,7 +33,7 @@ function Tutorial() {
     const steps = [
         {
             heading: "Uploading PDF plan",
-            explanation: null,
+            explanation: "Tap on 'Upload PDF' and select a PDF from your files.",
             src: "/tutorial/upload-pdf.mp4",
         },
         {
@@ -66,7 +66,11 @@ function Tutorial() {
         },
         {
             heading: "Synchronising with planpin.app website",
-            explanation: "You may access and edit your plans on the web at planpin.app. Any changes you make on the web will only be reflected on the app (and vice versa) after you press 'Sync'. Note, sync is automatically carried out on first-time log in and on report generation.",
+            explanation: <>
+                <p>
+                    You may access and edit your plans online at <a href="https://planpin.app">planpin.app</a>. Any changes you make on the web will only be reflected on the iOS app (and vice versa) after you press 'Sync'. Note, sync is automatically carried out on first-time log in and on report generation.
+                </p>
+            </>,
             src: "/tutorial/sync.jpeg",
         },
     ]
