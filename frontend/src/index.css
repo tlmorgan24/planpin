@@ -108,6 +108,13 @@ a {
   max-width: 800px;
 }
 
+/* unlike other containers, we want to be able to position loading container inside, say, a modal, so should be relative instead of absolute */
+.loading-container { 
+  position: relative;
+  left: 0;
+  transform: none;
+}
+
 .help-container {
   max-width: 800px;
 }

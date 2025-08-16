@@ -166,8 +166,9 @@ function PDFInput() {
 
         // Get & validate pdf file:
         const file = e.target.files[0]; // as we are not using a form, e.target is the file input itself, not the form. So, we do e.target instead of e.target.elements["file-input"]
-        
-        if (file && file.type === 'application/pdf') { // file verified to be valid, hence save
+        const sizeInMb = file.size / (1024 * 1024)
+
+        if (file && file.type === 'application/pdf' && sizeInMb < 10) { // file verified to be valid, hence save
             
             if (Capacitor.getPlatform() !== 'web') {
                 // Save to file system:
@@ -201,10 +202,12 @@ function PDFInput() {
             toast.success("Plan uploaded", { id: 'uploading' });
             await refreshPdfObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
         
-        } else if (file) {
+        } else if (file && !(file.type === 'application/pdf')) {
             toast.error('The file must be a .pdf file.', { id: 'uploading' }); // same ID as loading toast, to remove that loading toast
+        } else if (file && !(sizeInMb < 10)) {
+            toast.error(`${Math.ceil(sizeInMb)}MB is too large, please limit file size to 10MB.`, { id: 'uploading' });
         } else {
-            toast.error('Please upload a file.', { id: 'uploading' }); // same ID as loading toast, to remove that loading toast
+            toast.error('Please upload a file.', { id: 'uploading' });
         }
         
     };

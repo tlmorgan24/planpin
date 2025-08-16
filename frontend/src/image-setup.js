@@ -14,21 +14,62 @@ export async function captureImage() {
         webUseInput: true, // use standard HTML file input if on web
     });
 
-    if (!(image.format == 'jpeg' || image.format == 'png')) {
-        throw new Error('Unsupported image format: ' + image.format);
-    }
+    const response = await fetch(image.webPath);
+    const blob = await response.blob();
+    const resizedBlob = await downsizeBlob(blob, 2048); // scale down so longer dimension is max 2048 pixels
 
-    return image;
+    return resizedBlob;
 
 }
 
-export async function saveImage(image, folder, saveDir, supabase=null) { // image is as saved from Camera.getPhoto with resultType: CameraResultType.Uri.
-
-    const extension = image.format == 'jpeg' ? 'jpg' : image.format; // use 'jpg' extension for jpeg format, otherwise use the format as is (e.g. png)
-    const desiredName = crypto.randomUUID() + '.' + extension; // unique filename, e.g. '7741B70A-570B-4253-841C-96FC3CF19AC3.jpg';
+// Reduce image size to save storage:
+async function downsizeBlob(blob, maxDim) {
     
-    const response = await fetch(image.webPath);
-    const blob = await response.blob();
+    const img = new Image();
+    img.src = URL.createObjectURL(blob);
+
+    await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+    });
+
+    let width = img.width;
+    let height = img.height;
+
+    if (width > height && width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+    } else if (height > maxDim) {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+    }
+    // Else, image is smaller than maxDim, so maintain original dimensions.
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");    
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const resizedBlob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => {
+            if (!b) return reject("Failed to create resized blob");
+            resolve(b);
+        }, "image/jpeg", 0.8); // 0.8 for some additional hardly-noticeable compression
+    });
+
+    URL.revokeObjectURL(img.src); // have to manually release memory allocated by createObjectURL
+
+    return resizedBlob;
+
+}
+
+
+export async function saveImage(blob, folder, saveDir, supabase=null) {
+
+    const format = blob.type.split("/")[1]; // e.g. 'jpeg' or 'png'
+    const extension = format == 'jpeg' ? 'jpg' : format; // use 'jpg' extension for jpeg format, otherwise use the format as is (e.g. png)
+    const desiredName = crypto.randomUUID() + '.' + extension; // unique filename, e.g. '7741B70A-570B-4253-841C-96FC3CF19AC3.jpg';
 
     let newName;
     if (saveDir) {

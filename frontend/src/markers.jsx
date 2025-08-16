@@ -150,7 +150,7 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
     const [imageIds, setImageIds] = useState([]); // will be array of file names for each EXISTING image associated with the marker (as taken from database; will remain empty if marker is new)
     const [imageUris, setImageUris] = useState([]); // will be array of URIs for each EXISTING image associated with the marker (will remain empty if marker is new), in same order as imageFileNames
-    const [newImages, setNewImages] = useState([]); // will be array of image objects for each NEWLY ADDED image to the marker.
+    const [newImageUris, setNewImageUris] = useState([]); // will be array of URIs for each NEWLY ADDED image to the marker
     const [markerInDb, setMarkerInDb] = useState(false); // will be whether or not marker is already in the database (true if existing marker user has clicked on; false if new marker user is adding)
     
     const [loading, setLoading] = useState(false); // to allow modal to show a loading icon when this is set to true (note we opt for manual loading instead of just a toast, so that we can prevent the user seeing & interacting with the form modal while it is loading/submitting)
@@ -336,13 +336,18 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
     // Whenever we close modal, we want to make sure to reset states so that future clicks will start fresh:
     function closeModal() {
+
+        // revoke created URLs to free up memory:
+        newImageUris.forEach(url => URL.revokeObjectURL(url));
+
         setClickedId(null);
-        setNewImages([]);
+        setNewImageUris([]);
         setImageUris([]);
         setMarkerInDb(false);
         setFormValues({reference: '', categoryId: '', description: '', severity: '', extent: ''});
         setIsOpen(false); // finally, close the modal
         setLoading(true); // so next modal will open with loading screen until its effect finishes
+
     }
     
     // If user requests close without pressing submit, close form and without submitting to database and erase the marker just added:
@@ -393,9 +398,9 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
 
         // Now, we are sure user is allowed to add a new image.
 
-        const image = await captureImage(); // image object is as saved from Camera.getPhoto
+        const image = await captureImage(); // image is blob object, after being obtained from Camera.getPhoto and downsized as appropriate
         toast.loading("Adding image...", {id: 'loading'}); // this toast must come AFTER captureImage, because otherwise, if user cancels image capture, loading toast will persist
-        setNewImages(prev => [...prev, image]); // add new image to newImages array
+        setNewImageUris(prev => [...prev, URL.createObjectURL(image)]); // add URL for new image to newImageUris array
         toast.success("Image added", {id: 'loading'});
     }
 
@@ -479,10 +484,12 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
             }
 
             // Save images and submit file names to images table of database (this must come after submission to markers table, as images table has foreign key constraint on markerId; i.e. marker must already exist):
-            for (const image of newImages) {
+            for (const imageUri of newImageUris) {
 
+                const response = await fetch(imageUri);
+                const blob = await response.blob();
+                const imageFileName = await saveImage(blob, imageFolder, saveDir, supabase); // save to Capacitor/Supabase storage AND return unique filename it was saved under
                 const imageId = crypto.randomUUID(); // ID for image to add (will always be unique)
-                const imageFileName = await saveImage(image, imageFolder, saveDir, supabase);
                 // Submit to images table of database:
                 if (platform !== 'web') {
                     await db.run(
@@ -661,10 +668,10 @@ function FormModal({ clickedId, setClickedId, clickLocations, setClickLocations,
                 ))}
 
                 {/* Newly-added images to item (not yet in database, but having temporary paths): */}
-                {newImages.map((image, i) => (
+                {newImageUris.map((uri, i) => (
                 <div className="item-image-container" key={i} >
-                    <img src={image.webPath} />
-                    <NewImageDeleteButton index={i} setNewImages={setNewImages}/>
+                    <img src={uri} />
+                    <NewImageDeleteButton index={i} setNewImageUris={setNewImageUris}/>
                 </div>
                 ))}
 
@@ -744,12 +751,12 @@ function ImageDeleteButton({index, imageIds, setImageIds, setImageUris}) {
 }
 
 // Button to delete newly-added image which isn't yet in database (identified by index of newImages array):
-function NewImageDeleteButton({index, setNewImages}) {
+function NewImageDeleteButton({index, setNewImageUris}) {
 
     async function handleClick() {
         toast.loading("Removing image...", {id: 'deleting'});
         // Remove image from newImages state (triggering re-render of images):
-        setNewImages(prev => prev.filter((_, i) => i !== index)); // sets newImages to new array with same items as previous array, except without item at specified index
+        setNewImageUris(prev => prev.filter((_, i) => i !== index)); // sets newImages to new array with same items as previous array, except without item at specified index
         toast.success("Image removed", {id: 'deleting'});
     }
 

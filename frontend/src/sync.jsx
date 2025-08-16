@@ -229,10 +229,10 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
 
     // Sync PDF and image files to cloud file storage:
     if (table === 'plans') {
-        await uploadToSupabase(supabase, rowsToPush, pdfFolder, saveDir, 'application/pdf');
+        await uploadToSupabase(supabase, rowsToPush, pdfFolder, saveDir, 'pdf');
     }
     else if (table === 'images') {
-        await uploadToSupabase(supabase, rowsToPush, imageFolder, saveDir, 'image/jpeg');
+        await uploadToSupabase(supabase, rowsToPush, imageFolder, saveDir, 'image');
     }
 
     // Update synced_at of pushed rows to match the row's updated_at (as current update of row has been synced):
@@ -394,11 +394,11 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
 
         if (table === 'plans') {
             const affectedFileNames = rowsToModify.map(row => row.pdf_filename);
-            downloadFromSupabase(supabase, affectedFileNames, pdfFolder, saveDir);
+            await downloadFromSupabase(supabase, affectedFileNames, pdfFolder, saveDir);
         }
         else if (table === 'images') {
             const affectedFileNames = rowsToModify.map(row => row.image_filename);
-            downloadFromSupabase(supabase, affectedFileNames, imageFolder, saveDir);
+            await downloadFromSupabase(supabase, affectedFileNames, imageFolder, saveDir);
         }
 
     }
@@ -465,20 +465,32 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
 
 }
     
-async function uploadToSupabase(supabase, rowsToPush, folder, saveDir, mimeType) {
+// contentType must be either 'pdf' or 'image':
+async function uploadToSupabase(supabase, rowsToPush, folder, saveDir, contentType) {
 
-    let field = null;
-    if (mimeType === 'application/pdf') {
-        field = 'pdf_filename'
+    let mimeType;
+    if (contentType === 'pdf') {
+        mimeType = 'application/pdf';
     }
-    else if (mimeType === 'image/jpeg') {
-        field = 'image_filename'
+    else if (contentType !== 'image') {
+        console.error("Error: contentType must be either 'pdf' or 'image'");
     }
-
+    // note if contentType is image, we must set on file-by-file basis depending on if png or jpeg
+    
+    const field = contentType + '_filename';
     const fileNamesFilter = rowsToPush.map(row => row[field]);
     const fileNames = await getFilenames(folder, saveDir, fileNamesFilter);
 
     for (const fileName of fileNames) {
+        if (contentType === 'image') { // we must determine on per-file basis whether it's png or jpg
+            const extension = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')) : '.jpg'; // extension INCLUDING "." (assume .jpg if no extension provided)
+            if (extension === ".png") {
+                mimeType = "image/png";
+            } 
+            else { // assume jpeg unless extension is specifically set as .png:
+                mimeType = "image/jpeg";
+            }
+        }
         const blob = await readAsBlob(fileName, folder, saveDir, mimeType);
         await saveBlobToSupabase(supabase, blob, fileName, folder, mimeType, true); // true to allow overwriting
     }
@@ -490,7 +502,7 @@ export async function saveBlobToSupabase(supabase, blob, fileName, folder, mimeT
     let newName = fileName;
 
     if (!overwrite) {
-        const extension = newName.includes('.') ? newName.slice(newName.lastIndexOf('.')) : '';
+        const extension = newName.includes('.') ? newName.slice(newName.lastIndexOf('.')) : ''; // extension INCLUDING "."
         const baseName = newName.slice(0, newName.lastIndexOf('.'));
         let counter = 1;
         while (await fileExistsInSupabase(supabase, newName, folder)) {

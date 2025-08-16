@@ -194,7 +194,7 @@ export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans
     if (Capacitor.getPlatform() !== 'web') {
         const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
         // Debug logging removed for production:
-        //await NativePurchases.setLogLevel({ level: LOG_LEVEL.DEBUG }); // for more detailed error messages (not supported on web version)
+        //await NativePurchases.setLogLevel({ level: LOG_LEVEL.DEBUG }); // for more detailed error messages (not supported on web version). NB apparently RevenueCat automatically uses debug log level in dev builds even without this
         await NativePurchases.configure({ 
             apiKey: revenueCatApiKey,
             //appUserId: userId, // <-- DOES NOT WORK FOR CAPACITOR SDK, have to use .logIn() method below instead
