@@ -5,6 +5,7 @@ import { UserContext, DbContext } from './main';
 import { AppContext } from './App';
 import { logOut, deleteAccount } from "./pages/Auth";
 import ConfirmModal from './ConfirmModal';
+import ExternalLink from './ExternalLink';
 
 export default function SettingsModal() {
 
@@ -55,8 +56,10 @@ export default function SettingsModal() {
             <p>
                 {/* note we use <Link> instead of <a> to preserve state and prevent full app reload: */}
                 <Link to="/pricing" onClick={() => setSettingsOpen(false)}>Subscription plans</Link><br />
-                <Link to="/contact" onClick={() => setSettingsOpen(false)}>Contact</Link><br/>
-                <Link to="/privacy-policy" onClick={() => setSettingsOpen(false)}>Privacy policy</Link>
+                <Link to="/contact" onClick={() => setSettingsOpen(false)}>Contact</Link>
+                <div style={{marginTop: '6px'}}/>
+                <Link to="/privacy-policy" onClick={() => setSettingsOpen(false)}>Privacy policy</Link><br/>
+                <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">Terms of use</ExternalLink>
             </p>
 
             <img className="bottom-logo" src="/logo-text-beside.svg" />

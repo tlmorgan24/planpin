@@ -23,11 +23,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Permission is required to take photos</string>
+	<string>Granting access to camera allows you to snap and upload images directly through the PlanPin app</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Permission is required to add to photo library</string>
+	<string>Allowing addition to photo library means PlanPin can export images to your camera roll</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Permission is required to access photo library</string>
+	<string>Granting access to photos allows you to upload images from your photo library</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

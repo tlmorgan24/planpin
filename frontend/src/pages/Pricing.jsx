@@ -9,6 +9,7 @@ import { UserContext } from "../main";
 import entitlements from "../entitlements.json";
 import MenuBar from "../MenuBar";
 import { checkConnection } from "../network";
+import ExternalLink from "../ExternalLink";
 
 export default function Pricing() {
 
@@ -145,19 +146,12 @@ export default function Pricing() {
     );
 };
 
-// Hyperlink to open new browser window with Apple subscriptions page for user to cancel their subscription (if using href directly, it may try to open in the app webview itself instead of Safari tab):
+// Hyperlink to open new browser window with Apple subscriptions page for user to cancel their subscription (if used href directly, it may try to open in the app webview itself instead of new Safari tab):
 function CancellationLink({children}) {
     return (
-        <a
-        href="#"
-        style={{color: '#0973DC'}}
-        onClick={(e) => {
-            e.preventDefault(); // prevent default behaviour (would navigate to "#", meaning top of page)
-            window.open("https://apps.apple.com/account/subscriptions", "_blank");
-        }}
-        >
+        <ExternalLink url="https://apps.apple.com/account/subscriptions" color="#0973DC">
             {children}
-        </a>
+        </ExternalLink>
     )
 }
 

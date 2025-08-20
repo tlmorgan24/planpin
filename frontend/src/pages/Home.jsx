@@ -8,6 +8,7 @@ import { getPdfObjects, saveFile } from '../pdf-setup';
 import { DbContext, UserContext } from "../main";
 import { SyncButton, saveBlobToSupabase } from "../sync";
 import MenuBar from "../MenuBar";
+import ExternalLink from "../ExternalLink";
 
 
 // -- CONTEXT VARIABLES --
@@ -96,12 +97,14 @@ export default function Home() {
                 <p>
                     {/* note we use <Link> instead of <a> to preserve state and prevent full app reload: */}
                     <Link to="/pricing">Subscription plans</Link><br />
-                    <Link to="/contact">Contact</Link><br/>
-                    <Link to="/privacy-policy">Privacy policy</Link>
+                    <Link to="/contact">Contact</Link>
+                    <div style={{marginTop: '6px'}}/>
+                    <Link to="/privacy-policy">Privacy policy</Link><br/>
+                    <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">Terms of use</ExternalLink>
                     { Capacitor.getPlatform() !== 'web' ?
                         <>
-                            <br/>
-                            <a href="https://planpin.app">planpin.app website</a>
+                            <div style={{marginTop: '6px'}}/>
+                            <ExternalLink url="https://planpin.app">planpin.app website</ExternalLink>
                         </>
                         :
                         null
@@ -234,7 +237,7 @@ function PDFInput() {
                     Upload PDF
                 </label>
             </div>
-            <input type="file" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/> {/* must be outside big-buttons-container so buttons inside are properly formatted */}
+            <input type="file" accept="application/pdf" onChange={handleUpload} name="file-input" id="file-input" style={{display: "none"}}/> {/* must be outside big-buttons-container so buttons inside are properly formatted */}
         </div>
     );
     

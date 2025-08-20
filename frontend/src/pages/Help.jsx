@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import MenuBar from "../MenuBar";
+import ExternalLink from "../ExternalLink";
 
 export default function Help() {
 
@@ -16,8 +17,8 @@ export default function Help() {
                 <Link to="/"><img className="bottom-logo" src="/logo-text-beside.svg" /></Link>
 
                 <p style={{fontSize: '0.8rem'}}>
-                Example PDF plan used with thanks to <a href="https://commons.wikimedia.org/wiki/File:LEVEL_11_FLOOR_PLAN.pdf">Vivianwwj</a>
-                , <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>, via Wikimedia Commons.
+                Example PDF plan used with thanks to <ExternalLink url="https://commons.wikimedia.org/wiki/File:LEVEL_11_FLOOR_PLAN.pdf">Vivianwwj</ExternalLink>
+                , <ExternalLink url="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</ExternalLink>, via Wikimedia Commons.
                 </p>
 
             </div>
@@ -33,7 +34,7 @@ function Tutorial() {
     const steps = [
         {
             heading: "Uploading PDF plan",
-            explanation: "Tap on 'Upload PDF' and select a PDF from your files.",
+            explanation: "Tap on 'Upload PDF' and select a PDF from your files. Vector-based PDFs (e.g. from CAD) are recommended over image-based PDFs (e.g. from scans).",
             src: "/tutorial/upload-pdf.mp4",
         },
         {
@@ -68,7 +69,7 @@ function Tutorial() {
             heading: "Synchronising with planpin.app website",
             explanation: <>
                 <p>
-                    You may access and edit your plans online at <a href="https://planpin.app">planpin.app</a>. Any changes you make on the web will only be reflected on the iOS app (and vice versa) after you press 'Sync'. Note, sync is automatically carried out on first-time log in and on report generation.
+                    You may access and edit your plans online at <ExternalLink url="https://planpin.app">planpin.app</ExternalLink>. Any changes you make on the web will only be reflected on the iOS app (and vice versa) after you press 'Sync' on the app. Note, the app automatically syncs on first-time log in and on report generation.
                 </p>
             </>,
             src: "/tutorial/sync.jpeg",

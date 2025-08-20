@@ -8,6 +8,7 @@ import { initPurchases } from "./Pricing";
 import Loading from "./Loading";
 import Modal from "react-modal";
 import { checkConnection } from "../network";
+import ExternalLink from "../ExternalLink";
 
 export default function Auth() {
 
@@ -48,14 +49,16 @@ export default function Auth() {
                 : null}
                 */}
             </div>
-            <p style={{marginBottom: '0'}}> {/* no bottom margin, as the <p> below already has its own pretty big top margin */}
-                Signing up is free!
-            </p>
             <p>
-                <Link to="/help">How to use PlanPin</Link><br/>
+                Signing up is free!
+                <div style={{marginTop: '6px'}}/>
+                <Link to="/help">How to use PlanPin</Link>
+                <div style={{marginTop: '6px'}}/>
                 <Link to="/pricing">Subscription plans</Link><br/>
-                <Link to="/contact">Contact</Link><br/>
-                <Link to="/privacy-policy">Privacy policy</Link>
+                <Link to="/contact">Contact</Link>
+                <div style={{marginTop: '6px'}}/>
+                <Link to="/privacy-policy">Privacy policy</Link><br/>
+                <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">Terms of use</ExternalLink>
             </p>
             <img className="bottom-logo" src="/logo-text-beside.svg" />
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} setLoading={setLoading} /> {/* will only be shown when modalIsOpen set to true */}

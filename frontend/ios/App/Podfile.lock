@@ -1,6 +1,8 @@
 PODS:
   - Capacitor (7.2.0):
     - CapacitorCordova
+  - CapacitorBrowser (7.0.2):
+    - Capacitor
   - CapacitorCamera (7.0.1):
     - Capacitor
   - CapacitorCommunitySqlite (7.0.0):
@@ -31,6 +33,7 @@ PODS:
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
   - "CapacitorCamera (from `../../node_modules/@capacitor/camera`)"
   - "CapacitorCommunitySqlite (from `../../node_modules/@capacitor-community/sqlite`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
@@ -50,6 +53,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   Capacitor:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorBrowser:
+    :path: "../../node_modules/@capacitor/browser"
   CapacitorCamera:
     :path: "../../node_modules/@capacitor/camera"
   CapacitorCommunitySqlite:
@@ -69,6 +74,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Capacitor: 03bc7cbdde6a629a8b910a9d7d78c3cc7ed09ea7
+  CapacitorBrowser: 22541e48442de44dc629c214388290d6eecc6ae9
   CapacitorCamera: 6e73f1fc6c629a672658705a02409b60854bc0f1
   CapacitorCommunitySqlite: b11e556cf5d149f9e0b6fbbb47959a6cd718c3d0
   CapacitorCordova: 5967b9ba03915ef1d585469d6e31f31dc49be96f
@@ -82,6 +88,6 @@ SPEC CHECKSUMS:
   SQLCipher: 31878d8ebd27e5c96db0b7cb695c96e9f8ad77da
   ZIPFoundation: b8c29ea7ae353b309bc810586181fd073cb3312c
 
-PODFILE CHECKSUM: 92fef89fe44463c541e5309d255e3ee264a19810
+PODFILE CHECKSUM: e6bd79c2442efe3f55b5ea12fbb33fa2a14c938f
 
 COCOAPODS: 1.16.2
