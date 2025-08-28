@@ -2,7 +2,7 @@ import { useContext, useState } from "react";
 import Modal from "react-modal";
 import { toast } from 'sonner';
 import { Filesystem } from "@capacitor/filesystem";
-import { DbContext, UserContext } from "./main";
+import { DbContext, UserContext, ProgressContext } from "./main";
 import { HomeContext } from "./pages/Home";
 import { getFilenames, saveFile, readAsBlob, removeFile } from "./pdf-setup";
 import Loading from "./pages/Loading";
@@ -29,11 +29,12 @@ export function SyncButton() {
     const {db: sqliteDb, supabase} = useContext(DbContext);
     const {userId, pdfFolder, imageFolder, saveDir} = useContext(UserContext);
     const {refreshPdfObjects} = useContext(HomeContext);
+    const {stage, setStage, progress, setProgress} = useContext(ProgressContext);
     
     const [modalIsOpen, setModalIsOpen] = useState(false);
 
     async function handleClick() {
-        await syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen, refreshPdfObjects);
+        await syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen, refreshPdfObjects, setStage, setProgress);
     }
 
     return(
@@ -52,7 +53,7 @@ export function SyncButton() {
 
 }
 
-export async function syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen=null, refreshPdfObjects=null) {
+export async function syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen=null, refreshPdfObjects=null, setStage=null, setProgress=null) {
 
     if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined || (userId !== 'guest' && !supabase)) return;
     
@@ -71,7 +72,7 @@ export async function syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imag
             await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir); // sync not applicable, just clean up old deleted files in local storage
         }
         else {
-            await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir);
+            await fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setStage, setProgress);
         }
         if (setModalIsOpen) setModalIsOpen(false);
         if (refreshPdfObjects) await refreshPdfObjects();
@@ -93,23 +94,39 @@ async function cloudCleanUp(supabase, sqliteDb, userId, pdfFolder, imageFolder) 
     await cleanUpCloudFiles(supabase, pdfFileNames, imageFileNames, pdfFolder, imageFolder);
 }
 
-export async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir) {
+export async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setStage=null, setProgress=null) {
 
     console.log('Starting sync...');
     
     for (const table of ['users', 'categories', 'plans', 'markers', 'images']) {
         try {
-            await pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir);
-            await pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir);
+            // NB stage and progress indicator handled within following functions, so not set here
+            await pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir, setStage, setProgress);
+            await pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir, setStage, setProgress);
         }
         catch (error) {
             console.error(`❌ Sync failed for table "${table}":`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
             throw error; // propagate error upward
         }
     }
+    if (setProgress) {
+        setProgress(null);
+    }
+    if (setStage) {
+        setStage("Cleaning up files");
+    }
     // cloudCleanUp relies on querying data from the local database, so best to run cloudCleanUp BEFORE localCleanUp (which will hard delete local records)
     await cloudCleanUp(supabase, sqliteDb, userId, pdfFolder, imageFolder);
     await localCleanUp(sqliteDb, userId, pdfFolder, imageFolder, saveDir);
+
+    if (setProgress) {
+        setProgress(null);
+    }
+    if (setStage) {
+        setStage(null);
+    }
+
+    console.log('Sync complete.');
 
 }
 
@@ -117,11 +134,17 @@ export async function fullSync(sqliteDb, supabase, userId, pdfFolder, imageFolde
 // -------- SYNC FUNCTIONS --------
 
 // Update all records of cloud database where local database has its "updated_at" more recent than its "last_synced" (or has never been synced):
-async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir) {
+async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir, setStage=null, setProgress=null) {
 
     if (userId === 'guest') return; // guest account data is never synced
 
     console.log('Starting pushing to cloud for table: ', table);
+    if (setStage) {
+        if (setProgress) {
+            setProgress(null);
+        }
+        setStage(`Backing up ${table}`);
+    }
 
     /*
     We want to get local changes not reflected in cloud database (records updated later than last sync), 
@@ -229,10 +252,10 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
 
     // Sync PDF and image files to cloud file storage:
     if (table === 'plans') {
-        await uploadToSupabase(supabase, rowsToPush, pdfFolder, saveDir, 'pdf');
+        await uploadToSupabase(supabase, rowsToPush, pdfFolder, saveDir, 'pdf', setStage, setProgress);
     }
     else if (table === 'images') {
-        await uploadToSupabase(supabase, rowsToPush, imageFolder, saveDir, 'image');
+        await uploadToSupabase(supabase, rowsToPush, imageFolder, saveDir, 'image', setStage, setProgress);
     }
 
     // Update synced_at of pushed rows to match the row's updated_at (as current update of row has been synced):
@@ -252,11 +275,17 @@ async function pushToCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFo
 }
 
 // Update all records of local database where cloud database has a more recent "updated_at" or row does not exist in local database:
-async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir) {
+async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, imageFolder, saveDir, setStage=null, setProgress=null) {
 
     if (userId === 'guest') return; // guest account data is never synced
 
     console.log('Starting pulling from cloud for table: ', table);
+    if (setStage) {
+        if (setProgress) {
+            setProgress(null);
+        }
+        setStage(`Retrieving ${table}`);
+    }
 
     const metaQuery = await sqliteDb.query(
         `
@@ -346,6 +375,7 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
         const rowsToModify = [];
 
         for (const row of data) {
+
             const localResult = await sqliteDb.query(
                 `
                     SELECT id 
@@ -364,6 +394,7 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
             if (new Date(row['updated_at']) > new Date(localUpdatedAt)) {
                 rowsToModify.push(row); // This row will be updated, as the cloud 'updated_at' is more recent than the local one
             }
+
         }
 
         if (rowsToModify.length > 0) { // we have to ensure executeSet is not executed with empty array (no statements), otherwise it will throw an error
@@ -394,11 +425,11 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
 
         if (table === 'plans') {
             const affectedFileNames = rowsToModify.map(row => row.pdf_filename);
-            await downloadFromSupabase(supabase, affectedFileNames, pdfFolder, saveDir);
+            await downloadFromSupabase(supabase, affectedFileNames, pdfFolder, saveDir, setStage, setProgress);
         }
         else if (table === 'images') {
             const affectedFileNames = rowsToModify.map(row => row.image_filename);
-            await downloadFromSupabase(supabase, affectedFileNames, imageFolder, saveDir);
+            await downloadFromSupabase(supabase, affectedFileNames, imageFolder, saveDir, setStage, setProgress);
         }
 
     }
@@ -466,7 +497,7 @@ async function pullFromCloud(sqliteDb, supabase, table, userId, pdfFolder, image
 }
     
 // contentType must be either 'pdf' or 'image':
-async function uploadToSupabase(supabase, rowsToPush, folder, saveDir, contentType) {
+async function uploadToSupabase(supabase, rowsToPush, folder, saveDir, contentType, setStage=null, setProgress=null) {
 
     let mimeType;
     if (contentType === 'pdf') {
@@ -476,12 +507,16 @@ async function uploadToSupabase(supabase, rowsToPush, folder, saveDir, contentTy
         console.error("Error: contentType must be either 'pdf' or 'image'");
     }
     // note if contentType is image, we must set on file-by-file basis depending on if png or jpeg
-    
+
     const field = contentType + '_filename';
     const fileNamesFilter = rowsToPush.map(row => row[field]);
     const fileNames = await getFilenames(folder, saveDir, fileNamesFilter);
 
+    const totalFileNames = fileNames.length;
+    let finishedFileNames = 0;
+
     for (const fileName of fileNames) {
+        
         if (contentType === 'image') { // we must determine on per-file basis whether it's png or jpg
             const extension = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')) : '.jpg'; // extension INCLUDING "." (assume .jpg if no extension provided)
             if (extension === ".png") {
@@ -493,6 +528,13 @@ async function uploadToSupabase(supabase, rowsToPush, folder, saveDir, contentTy
         }
         const blob = await readAsBlob(fileName, folder, saveDir, mimeType);
         await saveBlobToSupabase(supabase, blob, fileName, folder, mimeType, true); // true to allow overwriting
+        
+        // progress indicator:
+        finishedFileNames += 1;
+        if (setProgress) {
+            setProgress(finishedFileNames / totalFileNames);
+        }
+
     }
 
 }
@@ -541,9 +583,13 @@ async function fileExistsInSupabase(supabase, fileName, folder) {
     
 }
 
-async function downloadFromSupabase(supabase, fileNames, folder, saveDir) {
+async function downloadFromSupabase(supabase, fileNames, folder, saveDir, setStage=null, setProgress=null) {
+
+    const totalFileNames = fileNames.length;
+    let finishedFileNames = 0;
 
     for (const fileName of fileNames) {
+
         const { data: blob, error } = await supabase.storage
             .from('user-files')
             .download(`${folder}/${fileName}`);
@@ -554,6 +600,13 @@ async function downloadFromSupabase(supabase, fileNames, folder, saveDir) {
         also works in general for blobs of any file type.
         I call it with overwrite=true, so if file already exists, it will be overwritten.
         */
+
+        // progress indicator:
+        finishedFileNames += 1;
+        if (setProgress) {
+            setProgress(finishedFileNames / totalFileNames);
+        }
+
     }
 
 }

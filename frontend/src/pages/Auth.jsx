@@ -2,7 +2,7 @@ import { useContext, useState } from "react";
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { Link } from "react-router-dom";
-import { DbContext, UserContext } from "../main";
+import { DbContext, UserContext, ProgressContext } from "../main";
 import { syncAndRefresh, wipeAll } from "../sync";
 import { initPurchases } from "./Pricing";
 import Loading from "./Loading";
@@ -72,6 +72,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen, setLoading }) {
 
     const {db, supabase} = useContext(DbContext); // we are confident db exists here, as App.jsx only sends user here if db exists (otherwise sends to loading screen)
     const {setUserId, setPdfFolder, setImageFolder, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
+    const {setStage, setProgress} = useContext(ProgressContext);
 
     // Initalise form inputs to empty string (not null), so React knows this is a controlled component (recommended for form inputs):
     const emptyFormValues = {email: '', password: '', company: ''}; // note, company is a relic from when I thought it would be good to know; no longer included in form
@@ -143,7 +144,7 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen, setLoading }) {
         guarantee a signed-up user already exists in the local database
         */
 
-        setUpUser(false, authType, {userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setLoading)
+        setUpUser(false, authType, {userId: data.user.id, ...formValues}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setLoading, setStage, setProgress)
         // ^ passing "false" for "fromCache" variable, meaning we cannot confidently forego database updates, and therefore still require internet connection
 
         closeModal();
@@ -210,7 +211,7 @@ sets the values (apart from saveDir, which is a constant defined immediately in 
 Note authType input and getting company from object input are leftovers from when I thought it would be good 
 to collect company info. For now, I'm not going to collect this data.
 */
-export async function setUpUser(fromCache, authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setLoading) {
+export async function setUpUser(fromCache, authType, object, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setLoading, setStage, setProgress) {
     
     const platform = Capacitor.getPlatform();
     const { userId, email, company } = object;
@@ -254,7 +255,7 @@ export async function setUpUser(fromCache, authType, object, setUserId, setPdfFo
         }
 
         if (platform !== 'web') { // sync immediately to ensure supabase is up to date with potential new user
-            await syncAndRefresh(db, supabase, userId, pdfFolder, imageFolder, saveDir, null, null); // not passing setModalIsOpen or refreshPdfObjects here, as we are not within Home context and refresh PDF objects should happen automatically once Home.jsx renders
+            await syncAndRefresh(db, supabase, userId, pdfFolder, imageFolder, saveDir, null, null, setStage, setProgress); // not passing setModalIsOpen or refreshPdfObjects here, as we are not within Home context and refresh PDF objects should happen automatically once Home.jsx renders
         }
 
     }

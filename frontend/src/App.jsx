@@ -2,7 +2,7 @@ import { useState, useContext, useEffect, createContext } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Toaster } from 'sonner';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { UserContext, DbContext } from './main';
+import { UserContext, DbContext, ProgressContext } from './main';
 import { setUpUser } from './pages/Auth';
 import Home from './pages/Home';
 import Plan from './pages/Plan';
@@ -46,6 +46,8 @@ export default function App() {
 
     const {db, supabase} = useContext(DbContext);
     const {userId, setUserId, setPdfFolder, setImageFolder, saveDir, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
+    const {stage, setStage, progress, setProgress} = useContext(ProgressContext);
+
     const [checkedSession, setCheckedSession] = useState(false); // so that nothing will be rendered until we have checked for any previously saved session
 
     // Check for previously saved session:
@@ -60,7 +62,7 @@ export default function App() {
             const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
             if (error) console.error("Error: ", error);
             if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
-                await setUpUser(true, 'log-in', {userId: data.session.user.id, email: data.session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); 
+                await setUpUser(true, 'log-in', {userId: data.session.user.id, email: data.session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setStage, setProgress); 
                 // ^ passing "true" for "fromCache" variable, meaning we can forego database updates and therefore do not require internet connection
                 // ^ not passing "setLoading", as loading screen already being handled here
             }

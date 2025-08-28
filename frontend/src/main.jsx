@@ -92,6 +92,29 @@ function DbProvider({children}) {
     );
 }
 
+
+// -- PROGRESS CONTEXT (progress tracking for long operations, mainly sync) --
+
+// Define context object:
+export const ProgressContext = createContext();
+
+// Define context provider:
+function ProgressProvider({children}) {
+
+    const [stage, setStage] = useState(null); // current stage the progress relates to (e.g. "Retrieving images"). Null means do not show a stage.
+    const [progress, setProgress] = useState(null); // progress of current stage, where 0 means starting and 1 means finished (will be converted to percentage for displaying). Null means do not show progress indicator.
+    
+    return (
+        <ProgressContext.Provider value={{
+            stage, setStage,
+            progress, setProgress,
+        }}>
+        {children}
+        </ProgressContext.Provider>
+    );
+}
+
+
 // -- SAFE AREA (to avoid notch etc.) --
 
 export const SafeAreaContainer = ({ children }) => (
@@ -104,12 +127,14 @@ export const SafeAreaContainer = ({ children }) => (
 Modal.setAppElement('#root'); // so any modals in the app can properly hide non-modal part of app from screen readers when modal open
 createRoot(document.getElementById('root')).render(
     <StrictMode>
-        <UserProvider>
-            <DbProvider>
-                <SafeAreaContainer>
-                    <App />
-                </SafeAreaContainer>
-            </DbProvider>
-        </UserProvider>
+        <ProgressProvider>
+            <UserProvider>
+                <DbProvider>
+                    <SafeAreaContainer>
+                        <App />
+                    </SafeAreaContainer>
+                </DbProvider>
+            </UserProvider>
+        </ProgressProvider>
     </StrictMode>,
 );
