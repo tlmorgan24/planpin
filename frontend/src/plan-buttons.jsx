@@ -1,13 +1,15 @@
 import { useContext, useState, useEffect } from "react";
+import Modal from "react-modal";
 import { toast } from 'sonner';
 import { Share } from '@capacitor/share';
 import { Filesystem } from "@capacitor/filesystem";
-import { DbContext, UserContext } from "./main";
+import { DbContext, UserContext, ProgressContext } from "./main";
 import { PlanContext } from "./pages/Plan"; // to access context variables
 import { saveFile } from "./pdf-setup";
 import { Capacitor } from "@capacitor/core";
 import { fullSync } from "./sync";
 import { checkConnection } from "./network";
+import Loading from "./pages/Loading";
 
 
 // -- GENERATE REPORT --
@@ -16,7 +18,10 @@ export function GenerateReportButton() {
 
     const {userId, pdfFolder, imageFolder, saveDir} = useContext(UserContext);
     const {db, supabase} = useContext(DbContext);
+    const {setStage, setProgress} = useContext(ProgressContext);
     const {planId} = useContext(PlanContext);
+
+    const [modalIsOpen, setModalIsOpen] = useState(false);
 
     async function generateReport() {
 
@@ -27,31 +32,36 @@ export function GenerateReportButton() {
             toast.error('Please connect to the internet to generate a report', {id: 'loading'});
             return;
         }
-        
-        // First, ensure fully synced with cloud if on mobile (as all reports are generated from cloud data):
-        if (Capacitor.getPlatform() !== 'web') {
-            fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir);
-        }
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error) console.error("Error: ", error);
-        const accessToken = data.session.access_token;
-        const refreshToken = data.session.refresh_token;
-
-        //const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
-        //const serverPort = import.meta.env.VITE_SERVER_PORT;
-        const backendUrl = import.meta.env.VITE_BACKEND_URL;
-
-        const postData = {
-            access_token: accessToken,
-            refresh_token: refreshToken,
-            user_id: userId,
-            plan_id: planId,
-            priority_limit: 5, // for now, priority limit is not choosable by user
-            include_caption: false, // for now, photo captions are not a thing
-        }
+        setModalIsOpen(true);
 
         try {
+        
+            // First, ensure fully synced with cloud if on mobile (as all reports are generated from cloud data):
+            if (Capacitor.getPlatform() !== 'web') {
+                await fullSync(db, supabase, userId, pdfFolder, imageFolder, saveDir, setStage, setProgress);
+            }
+
+            setStage('Generating report');
+            setProgress(null);
+
+            const { data, error } = await supabase.auth.getSession();
+            if (error) console.error("Error: ", error);
+            const accessToken = data.session.access_token;
+            const refreshToken = data.session.refresh_token;
+
+            //const serverIp = import.meta.env.VITE_SERVER_IP_ADDRESS;
+            //const serverPort = import.meta.env.VITE_SERVER_PORT;
+            const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
+            const postData = {
+                access_token: accessToken,
+                refresh_token: refreshToken,
+                user_id: userId,
+                plan_id: planId,
+                priority_limit: 5, // for now, priority limit is not choosable by user
+                include_caption: false, // for now, photo captions are not a thing
+            }
 
             //const response = await fetch(`http://${serverIp}:${serverPort}/generate_report`, {
             const response = await fetch(`${backendUrl}/generate_report`, {
@@ -81,6 +91,9 @@ export function GenerateReportButton() {
                     path: `${folder}/${fileName}`,
                 });
 
+                setModalIsOpen(false);
+                setStage(null);
+                setProgress(null);
                 toast.success('Report generated!', {id: 'loading'}); // display success message right before Share sheet, instead of waiting for user to finish interacting with share sheet
 
                 await Share.share({
@@ -104,20 +117,35 @@ export function GenerateReportButton() {
                 document.body.removeChild(a);
 
                 URL.revokeObjectURL(url); // remove from memory
-
+                setModalIsOpen(false);
+                setStage(null);
+                setProgress(null);
                 toast.success('Report downloaded!', {id: 'loading'});
 
             }
 
         } catch (error) {
-            toast.error('There was a problem generating the report', {id: 'loading'});
-            console.error("Error generating report: ", error);
+            if (error.message === 'Share canceled') {
+                toast.info('Report sharing cancelled. Note PlanPin does not save generated reports.', {id: 'loading'});
+            }
+            else {
+                toast.error('There was a problem generating the report', {id: 'loading'});
+                console.error("Error generating report: ", error);
+            }
+            setModalIsOpen(false);
+            setStage(null);
+            setProgress(null);
         }
 
     }
 
     return (
-        <button type="button" className="accented" onClick={generateReport}>Generate report</button>
+        <>
+            <button type="button" className="accented" onClick={generateReport}>Generate report</button>
+            <Modal className={{base: 'centre-modal', afterOpen: 'after-open', beforeClose: 'before-close'}} closeTimeoutMS={300} isOpen={modalIsOpen} >
+                <Loading message="Please wait while report is being generated..." />
+            </Modal>
+        </>
     );
 
 }
