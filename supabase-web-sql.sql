@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT,
   company TEXT,
   country TEXT,
-  subscription_tier TEXT NOT NULL DEFAULT 'starter',
+  subscription_tier TEXT NOT NULL DEFAULT 'PlanPin Starter',
   billing_cycle_start TIMESTAMPTZ,
   billing_cycle_end TIMESTAMPTZ,
   reports_this_billing_cycle INTEGER NOT NULL DEFAULT 0,

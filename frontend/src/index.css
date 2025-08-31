@@ -38,6 +38,9 @@ If content-box (default) was used instead of border-box, then padding etc. would
   margin: 0;
   width: 100vw;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 
@@ -81,13 +84,9 @@ a {
 /* Top-level containers: */
 
 .home-container, .plan-container, .auth-container, .contact-container, .privacy-policy-container, .loading-container, .pricing-container, .help-container {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
   overflow-y: auto;
   margin-top: calc(var(--menu-bar-height) - env(safe-area-inset-top)); /* push content down to avoid menu bar (we take away safe area inset, as this is already accounted for in --menu-bar-height */
-  padding: var(--body-margin);
-  padding-top: 0;
   width: 100%;
   text-align: center;
   display: flex;

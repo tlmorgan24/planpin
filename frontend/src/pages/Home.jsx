@@ -22,7 +22,7 @@ function HomeProvider({children}) {
     const {userId, pdfFolder, saveDir} = useContext(UserContext);
     const {db, supabase} = useContext(DbContext);
 
-    const [pdfObjects, setPdfObjects] = useState([]); // object with pdf.js pdf objects keyed by their filenames.
+    const [pdfObjects, setPdfObjects] = useState({}); // object with pdf.js pdf objects keyed by their filenames.
 
     async function refreshPdfObjects() {
 
@@ -94,22 +94,31 @@ export default function Home() {
                 the input button, with its location/sizing, is showing you exactly where the added PDF will go.
                 */}
 
-                <p>
+                <ul style={{ listStyle: "none", padding: 0, margin: '12px' }}>
                     {/* note we use <Link> instead of <a> to preserve state and prevent full app reload: */}
-                    <Link to="/pricing">Subscription plans</Link><br />
-                    <Link to="/contact">Contact</Link>
-                    <div style={{marginTop: '6px'}}/>
-                    <Link to="/privacy-policy">Privacy policy</Link><br/>
-                    <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">Terms of use</ExternalLink>
-                    { Capacitor.getPlatform() !== 'web' ?
-                        <>
-                            <div style={{marginTop: '6px'}}/>
+                    <li>
+                        <Link to="/pricing">Subscription plans</Link>
+                    </li>
+                    <li style={{ marginBottom: "6px" }}>
+                        <Link to="/contact">Contact</Link>
+                    </li>
+                    <li>
+                        <Link to="/privacy-policy">Privacy policy</Link>
+                    </li>
+                    <li style={{ marginBottom: "6px" }}>
+                        <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">
+                            Terms of use
+                        </ExternalLink>
+                    </li>
+                    <li>
+                        { Capacitor.getPlatform() !== 'web' ?
                             <ExternalLink url="https://planpin.app">planpin.app website</ExternalLink>
-                        </>
-                        :
-                        null
-                    }
-                </p>
+                            :
+                            <ExternalLink url="https://apps.apple.com/gb/app/planpin/id6749440381">PlanPin iOS app</ExternalLink>
+                        }
+                    </li>
+                </ul>
+
                 <img className="bottom-logo" src="/logo-text-beside.svg" />
 
             </div>
@@ -202,7 +211,7 @@ function PDFInput() {
                 if (error) console.error('Error inserting plan: ', error);
             }
 
-            toast.success("Plan uploaded", { id: 'uploading' });
+            toast.success("Plan uploaded! Click on its thumbnail to start marking items.", { id: 'uploading' });
             await refreshPdfObjects(); // refresh pdfObjects context variable, which will cause ExistingPlans to update (as it tracks pdfObjects)
         
         } else if (file && !(file.type === 'application/pdf')) {
@@ -260,7 +269,12 @@ function Plans() {
     
     return(
         <div className='thumbnails-container'>
-            {Object.entries(pdfObjects).map(([fileName, pdf]) => {
+            { Object.keys(pdfObjects).length === 0 ? 
+            <p>
+                You have no plans yet! Click on "Upload PDF" to add one, or <Link to="/help">click here</Link> to learn how to use PlanPin. Click "Sync" at any time to back up to the cloud.
+            </p>
+            :
+            Object.entries(pdfObjects).map(([fileName, pdf]) => {
                 const href = `/plan?file=${encodeURIComponent(fileName)}`;
                 return (
                     <div className='thumbnail-filename-group' key={fileName}>
@@ -327,7 +341,7 @@ function PDFDeleteButton({fileName}) {
     const {refreshPdfObjects} = useContext(HomeContext);
 
     const [showConfirm, setShowConfirm] = useState(false); // to allow confirmation modal to be shown before deleting a plan
-    const confirmationMessage = 'If you proceed, this plan and all its associated data (including images and defect information) will be permanently deleted.'
+    const confirmationMessage = 'If you proceed, this plan and all its associated data (including marked items and images) will be permanently deleted.'
 
     async function deletePlan() {
 

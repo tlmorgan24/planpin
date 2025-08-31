@@ -49,17 +49,27 @@ export default function Auth() {
                 : null}
                 */}
             </div>
-            <p>
-                Signing up is free!
-                <div style={{marginTop: '6px'}}/>
-                <Link to="/help">How to use PlanPin</Link>
-                <div style={{marginTop: '6px'}}/>
-                <Link to="/pricing">Subscription plans</Link><br/>
-                <Link to="/contact">Contact</Link>
-                <div style={{marginTop: '6px'}}/>
-                <Link to="/privacy-policy">Privacy policy</Link><br/>
-                <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">Terms of use</ExternalLink>
-            </p>
+
+            <ul style={{ listStyle: "none", padding: 0, margin: '12px' }}>
+                <li style={{ marginBottom: "6px" }}>
+                    <Link to="/help">How to use PlanPin</Link>
+                </li>
+                <li>
+                    <Link to="/pricing">Subscription plans</Link>
+                </li>
+                <li style={{ marginBottom: "6px" }}>
+                    <Link to="/contact">Contact</Link>
+                </li>
+                <li>
+                    <Link to="/privacy-policy">Privacy policy</Link>
+                </li>
+                <li>
+                    <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">
+                        Terms of use
+                    </ExternalLink>
+                </li>
+            </ul>
+
             <img className="bottom-logo" src="/logo-text-beside.svg" />
             <AuthModal authType={authType} modalIsOpen={modalIsOpen} setModalIsOpen={setModalIsOpen} setLoading={setLoading} /> {/* will only be shown when modalIsOpen set to true */}
         </div>
@@ -192,6 +202,10 @@ function AuthModal({ authType, modalIsOpen, setModalIsOpen, setLoading }) {
                 }
                 */}
 
+                {authType === 'sign-up' ?
+                <p>Please take note of your password, as you will not be able to reset it.</p>
+                : null}
+
                 <div className="big-buttons-container">
                     <button type="submit" className="accented">Submit</button>
                     <button type="button" onClick={closeModal}>Cancel</button>
@@ -260,7 +274,7 @@ export async function setUpUser(fromCache, authType, object, setUserId, setPdfFo
 
     }
 
-    await initPurchases(userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); // configures RevenueCat Purchases object and updates subscription-related variables of UserContext
+    await initPurchases(userId, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle); // configures RevenueCat Purchases object and updates subscription-related variables of UserContext
 
     if (setLoading) setLoading(false);
 

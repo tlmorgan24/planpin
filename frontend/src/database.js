@@ -48,13 +48,14 @@ Note, the default of now IS set for Supabase, as that is supported there.
 async function createUsersTable(db) { 
 
     // Run table creation SQL if table does not yet exist (table will persist, so this is only for first time user is ever using app):
+    // NOTE: at time of writing, billing cycle info (including reports generated) will be null. I don't require it in my code. Revenuecat's database of users has detailed info if I desire
     const tableCreationStatement = `
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
             email TEXT,
             company TEXT,
             country TEXT,
-            subscription_tier TEXT NOT NULL DEFAULT 'starter',
+            subscription_tier TEXT NOT NULL DEFAULT 'PlanPin Starter',
             billing_cycle_start TIMESTAMP,
             billing_cycle_end TIMESTAMP,
             reports_this_billing_cycle INTEGER NOT NULL DEFAULT 0,

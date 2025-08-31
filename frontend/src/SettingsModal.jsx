@@ -14,7 +14,7 @@ export default function SettingsModal() {
     const { settingsOpen, setSettingsOpen } = useContext(AppContext);
 
     const [showConfirm, setShowConfirm] = useState(false); // to allow confirmation modal to be shown before deleting account
-    const confirmationMessage = 'If you proceed, your account and all its associated data (including PDFs, images and defect information) will be permanently deleted. This action is immediate and irreversible.'
+    const confirmationMessage = 'If you proceed, your account and all its associated data (including PDFs, marked items and images) will be permanently deleted. This action is immediate and irreversible.'
 
     function closeSettings() {
         setSettingsOpen(false);
@@ -53,14 +53,23 @@ export default function SettingsModal() {
                 <button type="button" className="bad" onClick={onRequestDelete}>Delete account</button>
             </div>
 
-            <p>
+            <ul style={{ listStyle: "none", padding: 0, margin: '12px' }}>
                 {/* note we use <Link> instead of <a> to preserve state and prevent full app reload: */}
-                <Link to="/pricing" onClick={() => setSettingsOpen(false)}>Subscription plans</Link><br />
-                <Link to="/contact" onClick={() => setSettingsOpen(false)}>Contact</Link>
-                <div style={{marginTop: '6px'}}/>
-                <Link to="/privacy-policy" onClick={() => setSettingsOpen(false)}>Privacy policy</Link><br/>
-                <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">Terms of use</ExternalLink>
-            </p>
+                <li>
+                    <Link to="/pricing" onClick={() => setSettingsOpen(false)}>Subscription plans</Link>
+                </li>
+                <li style={{ marginBottom: "6px" }}>
+                    <Link to="/contact" onClick={() => setSettingsOpen(false)}>Contact</Link>
+                </li>
+                <li>
+                    <Link to="/privacy-policy" onClick={() => setSettingsOpen(false)}>Privacy policy</Link>
+                </li>
+                <li>
+                    <ExternalLink url="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/">
+                        Terms of use
+                    </ExternalLink>
+                </li>
+            </ul>
 
             <img className="bottom-logo" src="/logo-text-beside.svg" />
 

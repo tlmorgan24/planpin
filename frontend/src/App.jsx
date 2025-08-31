@@ -70,7 +70,7 @@ export default function App() {
             setCheckedSession(true);
         }
         func();
-    }, [supabase])
+    }, [supabase]);
     
     /* 
     Within Auth component, I will update state of userId (using setUserId) once user logs in.

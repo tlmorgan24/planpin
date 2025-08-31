@@ -5,7 +5,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Purchases as NativePurchases, LOG_LEVEL, PURCHASES_ERROR_CODE } from "@revenuecat/purchases-capacitor"; // used on iOS
 import { Purchases as WebPurchases } from "@revenuecat/purchases-js"; // used on web (note web SDK does not support LOG_LEVEL)
-import { UserContext } from "../main";
+import { UserContext, DbContext } from "../main";
 import entitlements from "../entitlements.json";
 import MenuBar from "../MenuBar";
 import { checkConnection } from "../network";
@@ -14,6 +14,7 @@ import ExternalLink from "../ExternalLink";
 export default function Pricing() {
 
     const {userId, subscriptionTier, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle} = useContext(UserContext);
+    const {db, supabase} = useContext(DbContext);
     const navigate = useNavigate()
 
     async function handleClick(entitlementId) {
@@ -25,14 +26,15 @@ export default function Pricing() {
             navigate('/auth'); // note, "auth" isn't the actual route for auth screen. It uses "*", meaning any undefined route (like "auth") will route there
             return;
         }
-        if (entitlementId === subscriptionTier) {
-            toast.info(<>This plan is already selected.{entitlementId === "PlanPin Starter" ? null : <> To cancel, <CancellationLink>click here</CancellationLink>.</>}</>, {id: 'purchasing'});
+        if (entitlementId === subscriptionTier && entitlementId === 'PlanPin Starter') { // user's current plan is PlanPin Starter and they clicked the button for it (perhaps hoping to somehow cancel the free plan)
+            toast.info('This plan is already selected. To switch, please choose another plan.', {id: 'purchasing'});
             return;
         }
 
+        // DUE TO CHANGE IN CODE, BELOW CONDITION IS NOW OBSOLETE (as clicking the cancel button should immediately take them to the cancellation link). But, no harm leaving this code here for now.
         // If user wants to switch to the free plan, they are effectively wanting to cancel their subscription, which they must do manually at the provided link:
         if (entitlementId === "PlanPin Starter") {
-            toast.info(<>To convert to the free plan, cancel your subscription by <CancellationLink>clicking here</CancellationLink>.</>, {id: 'purchasing'});
+            toast.info(<>To convert to the free plan, cancel your subscription by <ExternalLink url="https://apps.apple.com/account/subscriptions" color="#0973DC">clicking here</ExternalLink>.</>, {id: 'purchasing'});
             return;
         }
 
@@ -114,13 +116,28 @@ export default function Pricing() {
                         </ul>
                         {Capacitor.getPlatform() !== 'web' ? // RevenueCat only valid on mobile app, so direct users to this if they are on web
                             <div className="big-buttons-container">
+                                {entitlement.id === subscriptionTier ? 
+                                    (entitlement.id === 'PlanPin Starter' ?
+                                        <button id={entitlement.id} onClick={() => handleClick(entitlement.id)} style={{backgroundColor:"var(--mid-primary-color)", cursor:"not-allowed"}}> {/* grey out button as it shouldn't be clicked, but if do click, I will hadle this with a message prompting user to choose another plan if they no longer want the free plan */}
+                                            Current plan
+                                        </button>
+                                    :
+                                        // Display cancel button, being hyperlink to open new browser window with Apple subscriptions page (if used href directly, it may try to open in the app webview itself instead of new Safari tab):
+                                        <ExternalLink url="https://apps.apple.com/account/subscriptions">
+                                            <button id={entitlement.id}>
+                                                Cancel plan
+                                            </button>
+                                        </ExternalLink>
+                                    )
+                                : 
                                 <button id={entitlement.id} onClick={() => handleClick(entitlement.id)} style={entitlement.id === subscriptionTier ? {backgroundColor:"var(--mid-primary-color)", cursor:"not-allowed"} : {}}> {/* if current plan, grey out button as it shouldn't be clicked, otherwise properties left as defaults defined in index.css */}
-                                    {entitlement.id === subscriptionTier ? 'Current plan' : 'Choose plan'}
+                                    Choose plan
                                 </button>
+                                }
                             </div>
                         :
                             <p style={{fontWeight: 'bold'}}>
-                                Manage subscriptions through the PlanPin iOS app
+                                Manage subscriptions through the <ExternalLink url="https://apps.apple.com/gb/app/planpin/id6749440381">PlanPin iOS app</ExternalLink>
                             </p>
                         }
 
@@ -134,7 +151,7 @@ export default function Pricing() {
                     {userId ? 
                         <>
                             <br/>
-                            Recent change not showing? <RefreshLink setSubscriptionTier={setSubscriptionTier} setAllowedPlans={setAllowedPlans} setAllowedMarkers={setAllowedMarkers} setAllowedImages={setAllowedImages} setAllowedReportsThisBillingCycle={setAllowedReportsThisBillingCycle}>Click here</RefreshLink> to refresh.
+                            Recent change not showing? <RefreshLink setSubscriptionTier={setSubscriptionTier} setAllowedPlans={setAllowedPlans} setAllowedMarkers={setAllowedMarkers} setAllowedImages={setAllowedImages} setAllowedReportsThisBillingCycle={setAllowedReportsThisBillingCycle} userId={userId} db={db} supabase={supabase}>Click here</RefreshLink> to refresh.
                         </>
                         :
                         null
@@ -146,22 +163,14 @@ export default function Pricing() {
     );
 };
 
-// Hyperlink to open new browser window with Apple subscriptions page for user to cancel their subscription (if used href directly, it may try to open in the app webview itself instead of new Safari tab):
-function CancellationLink({children}) {
-    return (
-        <ExternalLink url="https://apps.apple.com/account/subscriptions" color="#0973DC">
-            {children}
-        </ExternalLink>
-    )
-}
 
-function RefreshLink({children, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle}) {
+function RefreshLink({children, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase}) {
     return (
         <a
         href="#"
         onClick={(e) => {
             e.preventDefault(); // prevent default behaviour (would navigate to "#", meaning top of page)
-            resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle)
+            resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase)
         }}
         >
             {children}
@@ -170,7 +179,7 @@ function RefreshLink({children, setSubscriptionTier, setAllowedPlans, setAllowed
 }
 
 // SET UP REVENUECAT FOR CURRENT AUTHENTICATED USER (will be executed on user sign-in, see Auth.jsx):
-export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
+export async function initPurchases(userId, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
     /* 
     Note internet connection required for first-time config, but then caching is done automatically.
@@ -203,11 +212,11 @@ export async function initPurchases(userId, setSubscriptionTier, setAllowedPlans
         });
     }
 
-    await resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
+    await resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase);
 
 }
 
-async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
+async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase) {
 
     toast.loading("Checking subscription details...", {id: 'loading'});
 
@@ -226,6 +235,33 @@ async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowe
     let entitlementId = "PlanPin Starter"; // if user has purchased no subscription, no higher entitlement will be applied below, so they will remain on the free plan
     if (entitlementKeys.length > 0) {
         entitlementId = entitlementKeys[0]; // assuming user can only have one entitlement at a time (so array should have only one element)
+    }
+
+    // Update subscription tier in database if different to what database already has:
+    // Note, subscription_tier != entitlementId check won't work if subscription_tier is null, but the database is already constrained such that it is never null.
+    if (Capacitor.getPlatform() !== 'web') {
+        await db.run(`
+            UPDATE users 
+            SET subscription_tier = ?, updated_at = STRFTIME('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ? 
+                AND subscription_tier != ?
+        `, [entitlementId, userId, entitlementId]);
+    }
+    else {
+        const hasConnection = await checkConnection();
+        if (hasConnection) {
+            // we are not that bothered about updating subscription info in Supabase (RevenueCat already deals with the intricacies), so just do nothing if no connection
+            const {error} = await supabase
+                .from('users')
+                .update({
+                        subscription_tier: entitlementId,
+                        updated_at: new Date().toISOString(),
+                    }
+                )
+                .eq('id', userId)
+                .neq('subscription_tier', entitlementId);
+            if (error) console.error("Error: ", error);
+        }
     }
 
     setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
