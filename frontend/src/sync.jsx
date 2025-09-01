@@ -55,10 +55,10 @@ export function SyncButton() {
 
 export async function syncAndRefresh(sqliteDb, supabase, userId, pdfFolder, imageFolder, saveDir, setModalIsOpen=null, refreshPdfObjects=null, setStage=null, setProgress=null) {
 
-    if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined || (userId !== 'guest' && !supabase)) return;
+    if (!sqliteDb || pdfFolder === undefined || imageFolder === undefined || userId === undefined) return;
     
     const hasConnection = await checkConnection();
-    if (!hasConnection && userId !== 'guest') {
+    if ((!supabase || !hasConnection) && userId !== 'guest') {
         toast.error('Please connect to the internet to enable syncing', {id: 'syncing'});
         return;
     }

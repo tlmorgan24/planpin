@@ -14,6 +14,7 @@ export async function checkConnection(showToast = false) {
 }
   
 Network.addListener('networkStatusChange', status => {
+    console.log("Network changed");
     if (status.connected) {
         toast.success('Back online!', {id: 'network-status'});
     } else {

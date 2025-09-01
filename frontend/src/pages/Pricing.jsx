@@ -8,6 +8,7 @@ import { Purchases as WebPurchases } from "@revenuecat/purchases-js"; // used on
 import { UserContext, DbContext } from "../main";
 import entitlements from "../entitlements.json";
 import MenuBar from "../MenuBar";
+import { Network } from "@capacitor/network";
 import { checkConnection } from "../network";
 import ExternalLink from "../ExternalLink";
 
@@ -42,7 +43,7 @@ export default function Pricing() {
 
         const hasConnection = await checkConnection();
         if (!hasConnection) {
-            toast.error('Please connect to the internet to change plan.', {id: 'purchasing'});
+            toast.error('Please connect to the internet to change plan', {id: 'purchasing'});
             return;
         }
 
@@ -52,14 +53,25 @@ export default function Pricing() {
 
         const entitlement = entitlements.find(entitlement => entitlement.id === entitlementId);
         const packageId = entitlement.packageId; // matching package IDs assigned in RevenueCat
-        const offerings = await NativePurchases.getOfferings();
+        
+        // It is possible we may be here before RevenueCat initialised, even if we are connected to internet (because have to wait for trigger to respond to the network change). If so, this will throw, so we still tell user to connect to internet (if error persists, they will at worst have to quit and restart app, and it will work):
+        let offerings
+        try {
+            offerings = await NativePurchases.getOfferings();
+        }
+        catch {
+            toast.error('Please connect to the internet to change plan. If you continue to have issues, please restart the app.', {id: 'purchasing'});
+            return;
+        }
         //const pkg = offerings.current.packageByIdentifier[packageId]; // packageByIdentifier not a valid method
         const pkg = offerings.current.availablePackages.find(p => p.identifier === packageId); // note offerings.current.availablePackages is an array of package objects, each with an identifier property
 
+        toast.loading("Confirming purchase (this may take a moment)", {id: 'purchasing'});
         try {
             const purchaseResult = await NativePurchases.purchasePackage({ aPackage: pkg });
             if (typeof purchaseResult.customerInfo.entitlements.active[entitlementId] !== "undefined") {      
-                // Update entitlement-related variables of UserContext:
+                // Update entitlement in database, and update entitlement-related variables of UserContext:
+                await updateDatabase(db, supabase, userId, entitlementId);
                 setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
                 toast.success("Plan purchased", {id: 'purchasing'});
             }
@@ -67,7 +79,7 @@ export default function Pricing() {
             if (error.code === PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR) {
                 toast.info("Plan purchase cancelled", {id: 'purchasing'});
             } else {
-                toast.error("Something went wrong", {id: 'purchasing'});
+                toast.error("Something went wrong. If the problem persists, please get in touch through the contact page.", {id: 'purchasing'});
             }
         }
 
@@ -181,38 +193,58 @@ function RefreshLink({children, setSubscriptionTier, setAllowedPlans, setAllowed
 // SET UP REVENUECAT FOR CURRENT AUTHENTICATED USER (will be executed on user sign-in, see Auth.jsx):
 export async function initPurchases(userId, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
 
-    /* 
-    Note internet connection required for first-time config, but then caching is done automatically.
-    
-    Connection check is already done in parent of initPurchases if this is a first-time sign-in, so we are 
-    confident first-time config will be carried out properly.
+    async function initRevenueCat() {
 
-    Apart from this, no need to throw error if no connection, as RevenueCat automatically decides whether to access
-    cache or not when you try and run the config, based on if there is connection or not.
+        // RevenueCat Purchases and LOG_LEVEL must come from separate packages (web vs native), which I imported under separate names.
+        // There is also a separate API key for web vs native.
+        // NOTE: web implementation may refuse to run due to violation of content security policy if using an adblocker. Seems to work properly without adblock on chrome.
+        if (Capacitor.getPlatform() !== 'web') {
+            const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
+            // Debug logging removed for production:
+            //await NativePurchases.setLogLevel({ level: LOG_LEVEL.DEBUG }); // for more detailed error messages (not supported on web version). NB apparently RevenueCat automatically uses debug log level in dev builds even without this
+            await NativePurchases.configure({ 
+                apiKey: revenueCatApiKey,
+                //appUserId: userId, // <-- DOES NOT WORK FOR CAPACITOR SDK, have to use .logIn() method below instead
+            });
+            await NativePurchases.logIn({ appUserID: userId });
+        }
+        else {
+            const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_WEB_API_KEY; // this is a sandbox API key, now suitable for use with real payments, but that's OK as I don't actually take payments on web (just query customer info)
+            await WebPurchases.configure({ 
+                apiKey: revenueCatApiKey,
+                appUserId: userId,
+            });
+        }
+
+    }
+    
+    /* 
+    Note internet connection required for first-time config, but then caching is in theory done automatically.
+    But, in practice, it seems an error is sometimes thrown, so I will rely on subscription_tier saved in local database and ignore RevenueCat completely if offline.
+   
+    Note a connection check is already done in parent of initPurchases if this is a first-time sign-in, so we are 
+    confident first-time config will be carried out properly.
     */
 
-    // RevenueCat Purchases and LOG_LEVEL must come from separate packages (web vs native), which I imported under separate names.
-    // There is also a separate API key for web vs native.
-    // NOTE: web implementation may refuse to run due to violation of content security policy if using an adblocker. Seems to work properly without adblock on chrome.
-    if (Capacitor.getPlatform() !== 'web') {
-        const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_API_KEY;
-        // Debug logging removed for production:
-        //await NativePurchases.setLogLevel({ level: LOG_LEVEL.DEBUG }); // for more detailed error messages (not supported on web version). NB apparently RevenueCat automatically uses debug log level in dev builds even without this
-        await NativePurchases.configure({ 
-            apiKey: revenueCatApiKey,
-            //appUserId: userId, // <-- DOES NOT WORK FOR CAPACITOR SDK, have to use .logIn() method below instead
-        });
-        await NativePurchases.logIn({ appUserID: userId });
+    const hasConnection = await checkConnection();
+    if (hasConnection) { // have connection, so can properly connect to RevenueCat (which is the best source of truth) and use this to determine subscription tier. We also take the opportunity to update local db subscription_tier with correct value.
+        await initRevenueCat();
+        await resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase);
     }
-    else {
-        const revenueCatApiKey = import.meta.env.VITE_REVENUECAT_WEB_API_KEY; // this is a sandbox API key, now suitable for use with real payments, but that's OK as I don't actually take payments on web (just query customer info)
-        await WebPurchases.configure({ 
-            apiKey: revenueCatApiKey,
-            appUserId: userId,
+    else if (Capacitor.getPlatform === 'web') {
+        toast.error('You must connect to the internet to use the PlanPin website');
+    }
+    else { // no internet on native, rely on subscription_tier in local database, and add listener to only initialise RevenueCat once network is connected
+        await setPurchasesContextManually(db, userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
+        Network.addListener('networkStatusChange', async () => {
+            const hasConnection = await checkConnection();   
+            if (hasConnection) {
+                await initRevenueCat();
+                console.log("RevenueCat initialised");
+                await resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase);
+            }
         });
     }
-
-    await resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase);
 
 }
 
@@ -234,11 +266,27 @@ async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowe
     const entitlementKeys = Object.keys(rcEntitlements); // should be empty if no active entitlements, and have one element otherwise (as my app only has one entitlement at a time)
     let entitlementId = "PlanPin Starter"; // if user has purchased no subscription, no higher entitlement will be applied below, so they will remain on the free plan
     if (entitlementKeys.length > 0) {
-        entitlementId = entitlementKeys[0]; // assuming user can only have one entitlement at a time (so array should have only one element)
+        // User should only have one entitlement at a time, but there may be an overlap when changing plans, hence multiple entitlementKeys here. For simplicity, I will be generous and take the best plan among the entitlementKeys:
+        //entitlementId = entitlementKeys[0]; // this would assume user will only have one entitlement at a time
+        for (const entitlement of ["PlanPin Professional", "PlanPin Standard"]) { // plans in order of priority
+            if (entitlementKeys.includes(entitlement)) {
+                entitlementId = entitlement;
+                break;
+            }
+        }
     }
 
     // Update subscription tier in database if different to what database already has:
     // Note, subscription_tier != entitlementId check won't work if subscription_tier is null, but the database is already constrained such that it is never null.
+    updateDatabase(db, supabase, userId, entitlementId);
+
+    setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
+
+    toast.success(`Subscription confirmed (${entitlementId})`, {id: 'loading'});
+
+}
+
+async function updateDatabase(db, supabase, userId, entitlementId) {
     if (Capacitor.getPlatform() !== 'web') {
         await db.run(`
             UPDATE users 
@@ -247,27 +295,32 @@ async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowe
                 AND subscription_tier != ?
         `, [entitlementId, userId, entitlementId]);
     }
-    else {
-        const hasConnection = await checkConnection();
-        if (hasConnection) {
-            // we are not that bothered about updating subscription info in Supabase (RevenueCat already deals with the intricacies), so just do nothing if no connection
-            const {error} = await supabase
-                .from('users')
-                .update({
-                        subscription_tier: entitlementId,
-                        updated_at: new Date().toISOString(),
-                    }
-                )
-                .eq('id', userId)
-                .neq('subscription_tier', entitlementId);
-            if (error) console.error("Error: ", error);
-        }
+    const hasConnection = await checkConnection();
+    if (supabase && hasConnection) {
+        // we are not that bothered about updating subscription info in Supabase, so just do nothing if no connection (the current function should only be possible to be called if there is a connection anyway)
+        const {error} = await supabase
+            .from('users')
+            .update({
+                    subscription_tier: entitlementId,
+                    updated_at: new Date().toISOString(),
+                }
+            )
+            .eq('id', userId)
+            .neq('subscription_tier', entitlementId);
+        if (error) console.error("Error: ", error);
     }
+}
 
+async function setPurchasesContextManually(db, userId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
+
+    const result = await db.query(`
+        SELECT subscription_tier
+        FROM users 
+        WHERE id = ? 
+    `, [userId]);
+    const entitlementId = result.values[0]['subscription_tier'] || 'PlanPin Starter';
     setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle);
-
-    toast.success(`Subscription confirmed (${entitlementId})`, {id: 'loading'});
-
+    
 }
 
 function setPurchasesContext(entitlementId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {

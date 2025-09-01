@@ -238,7 +238,7 @@ export async function setUpUser(fromCache, authType, object, setUserId, setPdfFo
     if (!fromCache) { // if not from cache, we cannot be sure user exists in supabase, so we must ensure we are connected to internet to update supabase
         
         const hasConnection = await checkConnection();
-        if (!hasConnection) {
+        if (!supabase || !hasConnection) {
             toast.error('Please connect to the internet to sign up/in. Once signed in, you can use certain features offline.');
             if (setLoading) setLoading(false);
             return;
@@ -297,7 +297,7 @@ export async function logOut(supabase, setUserId, setSubscriptionTier, setAllowe
     toast.loading('Logging out...', {id: 'log-out'});
 
     const hasConnection = await checkConnection();
-    if (!hasConnection) {
+    if (!supabase || !hasConnection) {
         toast.error('Please connect to the internet to log out', {id: 'log-out'});
         return;
     }
@@ -322,7 +322,7 @@ export async function deleteAccount(supabase, sqliteDb, userId, setUserId, saveD
     toast.loading('Deleting account...', {id: 'loading'});
 
     const hasConnection = await checkConnection();
-    if (!hasConnection) {
+    if (!supabase || !hasConnection) {
         toast.error('Please connect to the internet to delete your account', {id: 'loading'});
         return;
     }

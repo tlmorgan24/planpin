@@ -75,7 +75,7 @@ function DbProvider({children}) {
     useEffect(() => {
         async function func() {
             const database = await initDb();
-            const supabase = await initSupabase();
+            const supabase = await initSupabase(setSupabase); // we retrieve the initialised supabase object if connected to network, but otherwise pass setSupabase for a network listener to set supabase when back online
             setDb(database);
             setSupabase(supabase);
         }

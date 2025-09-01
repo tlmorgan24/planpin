@@ -28,7 +28,7 @@ export function GenerateReportButton() {
         toast.loading('Generating report (this may take a few minutes)...', {id: 'loading'});
 
         const hasConnection = await checkConnection();
-        if (!hasConnection) {
+        if (!supabase || !hasConnection) {
             toast.error('Please connect to the internet to generate a report', {id: 'loading'});
             return;
         }

@@ -56,15 +56,18 @@ export default function App() {
     useEffect(() => {
         async function func() {
 
-            if (!supabase) return;
             if (userId) {
                 setCheckedSession(true);
                 return;
                 // ^ marking session as "checked" and returning if userId already defined prevents setUpUser running every time user e.g. goes from Home screen to Contact screen
             }
 
+            if ( (Capacitor.getPlatform !== 'web' && !db) || (Capacitor.getPlatform === 'web' && !supabase) ) {
+                return;
+            }
+
             const hasConnection = await checkConnection();
-            if (hasConnection) { // connection is required for supabase.auth.getSession() to work properly with expired tokens (as it will try and refresh them by connecting to internet)
+            if (supabase && hasConnection) { // connection is required for supabase.auth.getSession() to work properly with expired tokens (as it will try and refresh them by connecting to internet)
                 const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
                 if (error) console.error("Error: ", error);
                 if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
@@ -73,7 +76,7 @@ export default function App() {
                     // ^ not passing "setLoading", as loading screen already being handled here
                 }
             }
-            else { // if no connection, we will rely on manual cached session and not use supabase auth - we can still set up the user from the saved data (we just won't be able to do any supabase calls until back online)
+            else { // if no connection, we will rely on manual cached session and not use supabase at all - we can still set up the user from the saved data (we just won't be able to do any supabase calls until back online)
                 // note, in supabase.js, we add a network listener so supabase will set the session to an authenticated one when back online
                 const session = await getManualSession();
                 if (session) {
@@ -87,7 +90,7 @@ export default function App() {
 
         }
         func();
-    }, [supabase]);
+    }, [db, supabase]);
     
     /* 
     Within Auth component, I will update state of userId (using setUserId) once user logs in.
@@ -99,7 +102,7 @@ export default function App() {
     return (
         <>
             {/* Show loading screen while waiting for SQLite or Supabase database clients to initialise (both required for mobile app; only Supabase required for web): */}
-            {(!checkedSession || !supabase || (Capacitor.getPlatform() !== 'web' && !db)) ?
+            {(!checkedSession) ?
                 <Loading message="Setting up..." />
             : (
                 <AppProvider>
