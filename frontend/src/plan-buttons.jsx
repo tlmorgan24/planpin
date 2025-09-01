@@ -129,7 +129,7 @@ export function GenerateReportButton() {
                 toast.info('Report sharing cancelled. Note PlanPin does not save generated reports.', {id: 'loading'});
             }
             else {
-                toast.error('There was a problem generating the report', {id: 'loading'});
+                toast.error('There was a problem generating the report. If the problem persists, please get in touch through the contact page.', {id: 'loading'});
                 console.error("Error generating report: ", error);
             }
             setModalIsOpen(false);

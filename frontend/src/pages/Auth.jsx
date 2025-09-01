@@ -9,6 +9,7 @@ import Loading from "./Loading";
 import Modal from "react-modal";
 import { checkConnection } from "../network";
 import ExternalLink from "../ExternalLink";
+import { Preferences } from '@capacitor/preferences';
 
 export default function Auth() {
 
@@ -292,9 +293,16 @@ export async function setUpUser(fromCache, authType, object, setUserId, setPdfFo
 }
 
 export async function logOut(supabase, setUserId, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle) {
-
+    
     toast.loading('Logging out...', {id: 'log-out'});
 
+    const hasConnection = await checkConnection();
+    if (!hasConnection) {
+        toast.error('Please connect to the internet to log out', {id: 'log-out'});
+        return;
+    }
+
+    await Preferences.remove({ key: 'supabase.session' }); // remove stored session from cache. WARNING - KEY IS HARD-CODED
     const { error } = await supabase.auth.signOut();
     if (error) console.error('Error signing out: ', error.message);
 

@@ -14,6 +14,8 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import Pricing from './pages/Pricing';
 import SettingsModal from './SettingsModal';
 import { CategoriesModal } from './categories';
+import { checkConnection } from './network';
+import { getManualSession } from './supabase';
 
 
 // -- CONTEXT VARIABLES --
@@ -53,21 +55,36 @@ export default function App() {
     // Check for previously saved session:
     useEffect(() => {
         async function func() {
+
             if (!supabase) return;
             if (userId) {
                 setCheckedSession(true);
                 return;
                 // ^ marking session as "checked" and returning if userId already defined prevents setUpUser running every time user e.g. goes from Home screen to Contact screen
             }
-            const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
-            if (error) console.error("Error: ", error);
-            if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
-                await setUpUser(true, 'log-in', {userId: data.session.user.id, email: data.session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setStage, setProgress); 
-                // ^ passing "true" for "fromCache" variable, meaning we can forego database updates and therefore do not require internet connection
-                // ^ not passing "setLoading", as loading screen already being handled here
+
+            const hasConnection = await checkConnection();
+            if (hasConnection) { // connection is required for supabase.auth.getSession() to work properly with expired tokens (as it will try and refresh them by connecting to internet)
+                const {data, error} = await supabase.auth.getSession(); // note session has already been set if previously saved (in supabase.js for native mobile using Capacitor storage, and automatically on web using IndexedDB)
+                if (error) console.error("Error: ", error);
+                if (data && data.session) { // previously saved session exists and is still valid (i.e. not expired token or deleted user etc), so can set up user directly from this, and then continue to usual Home screen (below)
+                    await setUpUser(true, 'log-in', {userId: data.session.user.id, email: data.session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setStage, setProgress); 
+                    // ^ passing "true" for "fromCache" variable, meaning we can forego database updates and therefore do not require internet connection
+                    // ^ not passing "setLoading", as loading screen already being handled here
+                }
             }
-            // Else, no previously saved session, so do nothing and leave userId as-is (undefined); will end up taking user to authentication screen
+            else { // if no connection, we will rely on manual cached session and not use supabase auth - we can still set up the user from the saved data (we just won't be able to do any supabase calls until back online)
+                // note, in supabase.js, we add a network listener so supabase will set the session to an authenticated one when back online
+                const session = await getManualSession();
+                if (session) {
+                    await setUpUser(true, 'log-in', {userId: session.user.id, email: session.user.email}, setUserId, setPdfFolder, setImageFolder, saveDir, db, supabase, setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, setStage, setProgress); 
+                }
+                // else, no previously cached session -> user will have to connect to internet and sign in (this should only be necessary if they manually signed out or this is the first time they're using the app)
+                // we will do nothing and leave userId as-is (undefined); will end up taking user to authentication screen when we set session as checked below
+            }
+
             setCheckedSession(true);
+
         }
         func();
     }, [supabase]);

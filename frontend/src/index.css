@@ -127,7 +127,6 @@ a {
 
 .cards-container {
   position: relative;
-  overflow-y: auto;
   width: 100%;
   text-align: center;
   display: flex;
