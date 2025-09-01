@@ -18,6 +18,6 @@ Network.addListener('networkStatusChange', status => {
     if (status.connected) {
         toast.success('Back online!', {id: 'network-status'});
     } else {
-        toast.warning('Lost internet connection' + (Capacitor.getPlatform !== 'web' ? '. You may continue to collect data, but will not be able to sync or generate reports.' : null), {id: 'network-status'});
+        toast.warning('Lost internet connection' + (Capacitor.getPlatform() !== 'web' ? '. You may continue to collect data, but will not be able to sync or generate reports.' : null), {id: 'network-status'});
     }
 });

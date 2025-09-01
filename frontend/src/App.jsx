@@ -62,7 +62,7 @@ export default function App() {
                 // ^ marking session as "checked" and returning if userId already defined prevents setUpUser running every time user e.g. goes from Home screen to Contact screen
             }
 
-            if ( (Capacitor.getPlatform !== 'web' && !db) || (Capacitor.getPlatform === 'web' && !supabase) ) {
+            if ( (Capacitor.getPlatform() !== 'web' && !db) || (Capacitor.getPlatform() === 'web' && !supabase) ) {
                 return;
             }
 

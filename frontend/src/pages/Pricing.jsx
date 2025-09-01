@@ -231,7 +231,7 @@ export async function initPurchases(userId, db, supabase, setSubscriptionTier, s
         await initRevenueCat();
         await resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowedMarkers, setAllowedImages, setAllowedReportsThisBillingCycle, userId, db, supabase);
     }
-    else if (Capacitor.getPlatform === 'web') {
+    else if (Capacitor.getPlatform() === 'web') {
         toast.error('You must connect to the internet to use the PlanPin website');
     }
     else { // no internet on native, rely on subscription_tier in local database, and add listener to only initialise RevenueCat once network is connected
