@@ -252,6 +252,11 @@ async function resetCustomerInfo(setSubscriptionTier, setAllowedPlans, setAllowe
 
     toast.loading("Checking subscription details...", {id: 'loading'});
 
+    const hasConnection = await checkConnection();   
+    if (!hasConnection) {
+        toast.error("Please connect to the internet to verify subscription details", {id: 'loading'});
+    }
+
     // RevenueCat Purchases must come from separate packages (web vs native), which I imported under separate names (either way, assumed already configured at this point):
     let customerInfo = undefined; // info for current user
     if (Capacitor.getPlatform() !== 'web') { // on native mobile

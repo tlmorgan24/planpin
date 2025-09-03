@@ -23,11 +23,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Granting access to camera allows you to snap and upload images directly through the PlanPin app</string>
+	<string>PlanPin needs access to your camera so you can take photos in-app and upload them to your plans</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Allowing addition to photo library means PlanPin can export images to your camera roll</string>
+	<string>PlanPin needs access to save images from your plans to your photo library</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Granting access to photos allows you to upload images from your photo library</string>
+	<string>PlanPin needs access to your photo library so you can upload existing photos to your plans</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
