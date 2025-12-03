@@ -1,5 +1,3 @@
-# PlanPin
-
 ## 📌 Overview
 
 PlanPin is an iOS app designed for professionals carrying out site inspection work (such as in the construction industry). It allows the user to annotate site plans, track inspection data, and automatically generate reports.
