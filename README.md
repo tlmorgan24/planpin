@@ -4,7 +4,7 @@ PlanPin is an iOS app designed for professionals carrying out site inspection wo
 
 App Store link: [https://apps.apple.com/us/app/planpin/id6749440381](https://apps.apple.com/us/app/planpin/id6749440381).
 
-![Demo](assets/demo.gif)
+<img src="assets/demo.gif" alt="Demo" height="400">
 
 ## How professionals use PlanPin
 
